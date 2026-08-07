@@ -1,0 +1,13 @@
+{
+    "users": {
+        "M": {
+            "currency": "JPY",
+            "budget_limit": {
+                "health": 12773.88
+            },
+            "current_expenses": {
+                "health": 17403.1
+            }
+        }
+    }
+}
