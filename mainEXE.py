@@ -1,4 +1,4 @@
-from guiCTK import start_app
+from guiTKC import start_app
 if __name__ == "__main__":
     start_app("Database.json")
 
