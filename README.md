@@ -48,7 +48,7 @@ To run the test suite locally: python -m pytest
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/your-username/expense-tracker.git
+git clone https://github.com/Mounir-code09/expense-tracker.git
 cd expense-tracker
 
 ```
