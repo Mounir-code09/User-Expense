@@ -1,12 +1,12 @@
-# Byte-compiled / optimized / DLL files
+# Byte-compiled / optimized / DLL files[cite: 34]
 __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
+# C extensions[cite: 34]
 *.so
 
-# Distribution / packaging
+# Distribution / packaging[cite: 34]
 build/
 develop-eggs/
 dist/
@@ -23,29 +23,29 @@ wheels/
 .installed.cfg
 *.egg
 
-# Unit test / coverage reports
+# Unit test / coverage reports[cite: 34]
 .tox/
 .coverage
 .coverage.*
 .cache
 .pytest_cache/
 
-# Environments (Virtual Environments)
+# Environments (Virtual Environments)[cite: 34]
 .venv/
 venv/
 ENV/
 env/
 
-# Operating System Files
+# Operating System Files[cite: 34]
 Thumbs.db
 .DS_Store
 
-# IDEs and Editors
+# IDEs and Editors[cite: 34]
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Application Database & Local Logs
+# Application Database & Local Logs[cite: 34]
 Database.json
 *.log

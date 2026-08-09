@@ -1,74 +1,82 @@
 """
-Matplotlib Chart Embedder for CustomTkinter
-Uses object-oriented Figure API to eliminate phantom Tk root windows.
+Matplotlib Chart Embedder
+-------------------------
+Renders expense pie charts inside CustomTkinter windows using the object-oriented
+Figure API (no global pyplot state). Figures are properly disposed on close.
 """
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+from .theme import CHART_COLORS
+
+
 class ChartViewer:
+    """Static helpers for embedding Matplotlib charts in the GUI."""
+
     @staticmethod
     def show_expense_pie_chart(parent_root, expense_data: dict, currency: str = "USD"):
-        # Filter out categories with zero or negative expenses to keep the chart clean
-        active_expenses = {cat.capitalize(): amt for cat, amt in expense_data.items() if amt > 0}
-        
-        # Display an info message box if there is no data available to plot
+        """
+        Open a pie chart window showing the distribution of logged expenses.
+
+        Categories with zero or negative totals are excluded. An info dialog is shown
+        when there is nothing to plot.
+        """
+        active_expenses = {
+            category.capitalize(): amount
+            for category, amount in expense_data.items()
+            if amount > 0
+        }
+
         if not active_expenses:
             CTkMessagebox(
-                title="No Data", 
-                message="No logged expenses available to visualize.", 
-                icon="info"
+                title="No Data",
+                message="No logged expenses available to visualize.",
+                icon="info",
             )
             return
 
-        # Create an independent Toplevel window linked to the parent root
         chart_win = ctk.CTkToplevel(parent_root)
         chart_win.title("Expense Distribution Chart")
-        chart_win.geometry("600x580")
+        chart_win.geometry("620x600")
         chart_win.transient(parent_root)
         chart_win.focus_set()
 
-        # Match colors dynamically based on the current system theme (Dark/Light)
         is_dark = ctk.get_appearance_mode().lower() == "dark"
-        bg_color = "#2b2b2b" if is_dark else "#f0f0f0"
-        text_color = "#ffffff" if is_dark else "#000000"
+        bg_color = "#1e1035" if is_dark else "#eef2ff"
+        text_color = "#f1f5f9" if is_dark else "#1e1b4b"
 
-        # Instantiate the Matplotlib Figure directly to avoid global pyplot overhead
         fig = Figure(figsize=(6, 5), dpi=100)
         fig.patch.set_facecolor(bg_color)
-        
+
         ax = fig.add_subplot(111)
         ax.set_facecolor(bg_color)
 
         labels = list(active_expenses.keys())
         amounts = list(active_expenses.values())
-        colors = ["#4A90E2", "#50E3C2", "#F5A623", "#E65D65", "#9013FE", "#B8E986"]
 
-        # Generate pie chart wedges with percentage labels
-        wedges, texts, autotexts = ax.pie(
+        _, _, autotexts = ax.pie(
             amounts,
             labels=labels,
             autopct="%1.1f%%",
             startangle=140,
-            colors=colors[:len(labels)],
-            textprops=dict(color=text_color, fontsize=10)
+            colors=CHART_COLORS[: len(labels)],
+            textprops={"color": text_color, "fontsize": 10},
         )
 
-        # Style percentage text for better readability
         for autotext in autotexts:
             autotext.set_color("#ffffff")
             autotext.set_weight("bold")
 
         ax.set_title(
-            f"Expense Breakdown ({currency})", 
-            color=text_color, 
-            fontsize=14, 
-            pad=15, 
-            weight="bold"
+            f"Expense Breakdown ({currency})",
+            color=text_color,
+            fontsize=14,
+            pad=15,
+            weight="bold",
         )
 
-        # Embed the Matplotlib figure into the CustomTkinter canvas widget
         canvas = FigureCanvasTkAgg(fig, master=chart_win)
         canvas.draw()
         canvas_widget = canvas.get_tk_widget()
@@ -76,6 +84,8 @@ class ChartViewer:
         canvas_widget.pack(fill="both", expand=True, padx=15, pady=(15, 5))
 
         def close_chart():
+            fig.clear()
+            canvas_widget.destroy()
             chart_win.destroy()
 
         chart_win.protocol("WM_DELETE_WINDOW", close_chart)
