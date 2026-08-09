@@ -3,7 +3,7 @@ DataManager Unit Test Pipeline
 """
 import pytest
 import json
-from data_manager import (
+from core.data_manager import (
     load_database, load_user, save_user, 
     delete_user_data, get_all_usernames, cat_v
 )
@@ -13,14 +13,13 @@ def clean_test_db(tmp_path, monkeypatch):
     test_file = tmp_path / "test_db.json"
     with open(test_file, "w", encoding="utf-8") as f:
         json.dump({"users": {}}, f)
-    monkeypatch.setattr("data_manager.DATABASE_FILE", str(test_file))
-    return test_file
+    monkeypatch.setattr("core.data_manager.DATABASE_FILE", str(test_file))
 
 def test_load_database_behavior(clean_test_db, monkeypatch):
     db_data = load_database()
     assert db_data == {"users": {}}
     
-    monkeypatch.setattr("data_manager.DATABASE_FILE", "non_existent_file.json")
+    monkeypatch.setattr("core.data_manager.DATABASE_FILE", "non_existent_file.json")
     fallback_data = load_database()
     assert fallback_data == {"users": {}}
 

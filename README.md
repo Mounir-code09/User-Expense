@@ -1,31 +1,71 @@
-# Multi-User Personal Finance & Expense Tracker
+# 📊 Multi-Currency Expense Tracker & Financial Dashboard
 
-A modern, desktop-based personal finance management system engineered in Python. The application provides dynamic multi-user profile separation, real-time budget thresholding across dynamic categories, automatic precision multi-currency conversions, and an interactive graphical user interface built with CustomTkinter. 
-
-This repository leverages an automated validation pipeline via `pytest` to ensure structural mathematical accuracy and file-system transaction integrity.
+A robust, modern desktop application built with **Python**, **CustomTkinter**, and **Matplotlib** designed to track personal expenses, manage category-specific budget limits, and handle real-time multi-currency conversions with offline fallback support.
 
 ---
 
-## ✨ Features
+## 🚀 Key Features
 
-*   **Dynamic Multi-User Accounts:** Instantly swap between separate profiles managed on a proxy-based lookup architecture without data overhead.
-*   **Atomic JSON Data Engine:** Multi-stage file transactions that safeguard database records against truncation or sudden power loss corruptions.
-*   **Robust Category Whitelisting:** Input validation protecting budget boundaries against arbitrary naming inputs.
-*   **Precision Currency Conversion Engine:** Seamlessly converts inputs across `USD`, `EUR`, `GBP`, `JPY`, and `CAD` using isolated arithmetic verification down to two decimal places.
-*   **Visual Status Alert Matrix:** Instant visual text dashboards flagging category-specific parameters (`✅ OK` vs `❌ OVER`) upon expense recording.
-*   **Comprehensive Test Coverage:** Driven completely by automated mocks keeping physical disc structures clean during unit test runtime pipelines.
+1. **Modern Graphical User Interface**: Built with CustomTkinter using a responsive single-root architecture and a vibrant, theme-aware startup card interface.
+2. **Real-Time Multi-Currency Support**: Integrates live exchange rates via background asynchronous polling, complete with socket-based connectivity checks and static fallback rates for offline use.
+3. **Smart Budget Management**: Set, check, and purge budget limits per category with built-in over-budget warning prompts.
+4. **Data Visualization**: Clean, embedded Matplotlib pie charts displaying expense breakdowns dynamically adjusted for light and dark system themes.
+5. **Multi-User Profile System**: Securely manage multiple user profiles with isolated data structures and persistent records.
+6. **Atomic Data Persistence**: JSON-based database storage utilizing atomic file replacement (`.tmp` file renaming) to prevent data corruption.
 
 ---
 
-## 🚀 Getting Started
+## 📂 Project Architecture
 
-### Prerequisites
-*   Python 3.8 or higher
-*   Git installed on your system
+The core logic is modularly organized into the `core/` package:
 
-### Installation & Execution
+| Module | Description |
+| --- | --- |
+| `gui_app.py` | Manages the single-root application lifecycle, the vibrant startup authentication frame, and the main dashboard grid. |
+| `ui_actions.py` | Handles event controllers, modal popups, custom dropdown inputs, and UI message notifications. |
+| `user.py` | Manages user profile entities, budget thresholds, and native portfolio currency transformations. |
+| `expense_tracker.py` | Handles transaction updates, budget limit comparisons, and plain-text financial status report generation. |
+| `data_manager.py` | Manages JSON database persistence, file loading/saving, and category string validation. |
+| `currency_service.py` | Manages live exchange rate requests, background threads, socket-based network drop detection, and cross-rate calculations. |
+| `chart_viewer.py` | Object-oriented Matplotlib pie chart embedder using the Figure API to avoid global pyplot overhead. |
 
-1. **Clone the Repository:**
-   ```bash
-   git clone [https://github.com/yourusername/User_Expenses.git](https://github.com/yourusername/User_Expenses.git)
-   cd User_Expenses
+---
+
+## 🧪 Testing Suite
+
+The project includes a comprehensive test suite powered by **pytest**, covering core components, edge cases, and failure handling logic.
+
+1. **`test_currency_service.py`**: Validates live conversion math, fallback dictionary triggers, and offline failure threshold logic.
+2. **`test_data_manager.py`**: Tests database loading behavior, category string validation rules, user saving/loading, and cleanup operations.
+3. **`test_expense_tracker.py`**: Tests expense accumulation totals, aggregate spending calculations, and status table report formatting.
+4. **`test_user.py`**: Validates `User_class` initialization, negative budget boundary constraints, and container management.
+
+To run the test suite locally: python -m pytest
+
+
+
+## 🛠️ Installation & Getting Started
+
+1. **Clone the repository:**
+```bash
+git clone https://github.com/your-username/expense-tracker.git
+cd expense-tracker
+
+```
+
+
+2. **Install dependencies:**
+```bash
+pip install customtkinter CTkMessagebox matplotlib requests pytest
+
+```
+
+
+3. **Run the application:**
+```python
+from core.gui_app import start_app
+
+if __name__ == "__main__":
+    start_app("Database.json")
+
+```

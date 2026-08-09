@@ -3,8 +3,8 @@ ExpenseTracker Logic Testing Architecture
 """
 import pytest
 from unittest.mock import Mock
-from User import User_class
-from Expense_tracker import ExpenseTracker
+from core.user import User_class
+from core.expense_tracker import ExpenseTracker
 
 @pytest.fixture
 def mock_tracker_env():

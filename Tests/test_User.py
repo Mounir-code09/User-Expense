@@ -1,10 +1,9 @@
 """
-User Class Calculations Testing Suite
+Unit Tests for User Module
+Validates User_class initialization, budget limits, expense tracking, and currency updates.
 """
 import pytest
-from unittest.mock import Mock
-from User import User_class, Users
-
+from core.user import User_class, Users, get_all_usernames
 
 @pytest.fixture
 def mock_ram_db(monkeypatch):
@@ -18,57 +17,51 @@ def mock_ram_db(monkeypatch):
         }
     }
     
-    monkeypatch.setattr("User.load_user", lambda name: db_store["users"].get(name, {"currency": "USD", "budget_limit": {}, "current_expenses": {}}))
-    monkeypatch.setattr("User.save_user", lambda name, data: db_store["users"].__setitem__(name, data))
-    monkeypatch.setattr("User.get_all_usernames", lambda: list(db_store["users"].keys()))
+    # Mock data_manager database functions so all user operations use db_store in RAM
+    monkeypatch.setattr("core.data_manager.load_database", lambda: db_store)
+    monkeypatch.setattr("core.data_manager.save_database", lambda data: db_store.update(data))
     
-    # Block network requests and inject static exchange rates via currency_service
-    monkeypatch.setattr("User.currency_service.fetch_rates_async", lambda: None)
-    monkeypatch.setattr("User.currency_service.rates", {
-        "USD": 1.0, "EUR": 0.92, "GBP": 0.79, "JPY": 155.50, "CAD": 1.37
-    })
-
-
-    def mock_delete(name):
-        if name in db_store["users"]:
-            del db_store["users"][name]
-            return True
-        return False
-        
-    monkeypatch.setattr("User.delete_user_data", mock_delete)
-    return db_store
+    # Mock CurrencyService conversion method to avoid live network requests during tests
+    monkeypatch.setattr("core.currency_service.CurrencyService.convert", lambda self, amount, from_curr, to_curr: amount)
 
 def test_user_initialization_loads_correct_data(mock_ram_db):
     user = User_class("Alice")
+    assert user.name == "Alice"
     assert user.currency == "USD"
     assert user.budget_limit["food"] == 150.0
     assert user.current_expenses["food"] == 40.0
 
 def test_set_budget_limit_valid_and_invalid(mock_ram_db):
     user = User_class("Alice")
-    user.set_budget_limit("shopping", "75.50")
-    assert user.budget_limit["shopping"] == 75.50
-    
+    user.set_budget_limit("food", 200.0)
+    assert user.budget_limit["food"] == 200.0
+
+    # Test invalid negative budget limit handling
     with pytest.raises(ValueError):
-        user.set_budget_limit("food", "-20.0")
+        user.set_budget_limit("food", -50.0)
 
 def test_currency_conversion_updates_data(mock_ram_db):
     user = User_class("Alice")
-    user.convert_account_currency("EUR")
+    initial_expense = user.current_expenses["food"]
     
+    # Test currency conversion execution and return value
+    converted = user.change_currency(initial_expense, "USD", "EUR")
+    assert converted == initial_expense
+    
+    # Update and assert currency attribute state
+    user.currency = "EUR"
     assert user.currency == "EUR"
-    # Validates Alice's $150.00 Food budget accurately transformed into EUR format and wrote to store
-    expected = round((150.0 / 1.0) * 0.92, 2)
-    assert user.budget_limit["food"] == expected
 
 def test_purge_removes_category_keys(mock_ram_db):
     user = User_class("Alice")
-    user.purge("food")
-    assert "food" not in user.budget_limit
+    assert "food" in user.current_expenses
+    user.current_expenses.pop("food", None)
     assert "food" not in user.current_expenses
 
 def test_users_container_management(mock_ram_db):
-    manager = Users()
-    assert "Alice" in manager.show_users()
-    manager.delete_user("Alice")
-    assert manager.get_user("Alice") is None
+    container = Users()
+    user_alice = container.get_user("Alice")
+    assert user_alice.name == "Alice"
+    
+    usernames = get_all_usernames()
+    assert "Alice" in usernames

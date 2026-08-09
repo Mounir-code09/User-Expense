@@ -1,13 +1,44 @@
 {
     "users": {
         "M": {
-            "currency": "JPY",
+            "currency": "EUR",
             "budget_limit": {
-                "health": 12773.88
+                "food": 129.9
             },
             "current_expenses": {
-                "health": 17403.1
+                "food": 9.04
             }
+        },
+        "\u00d9": {
+            "currency": "USD",
+            "budget_limit": {
+                "food": 100.0,
+                "health": 400.0
+            },
+            "current_expenses": {
+                "food": 80.0,
+                "health": 40.0
+            }
+        },
+        "Mounir": {
+            "currency": "USD",
+            "budget_limit": {},
+            "current_expenses": {}
+        },
+        "Po": {
+            "currency": "USD",
+            "budget_limit": {},
+            "current_expenses": {}
+        },
+        "Mo": {
+            "currency": "USD",
+            "budget_limit": {},
+            "current_expenses": {}
+        },
+        "V": {
+            "currency": "USD",
+            "budget_limit": {},
+            "current_expenses": {}
         }
     }
 }

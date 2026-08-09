@@ -2,8 +2,8 @@
 Expense Tracking Calculations Module
 Handles transaction updates and status matrix text generation based on native account currency.
 """
-from User import User_class
-from data_manager import VALID_CATEGORIES
+from .user import User_class
+from .data_manager import VALID_CATEGORIES
 
 class ExpenseTracker:
     def __init__(self, user: User_class):
@@ -11,13 +11,24 @@ class ExpenseTracker:
         self.expenseReport = self.user.current_expenses
 
     def add_expense(self, category_lower, amount):      
+        # Retrieve current spending, add new amount, and round to 2 decimal places
         current_spending = self.expenseReport.get(category_lower, 0.0)
         new_spending = current_spending + float(amount)
         self.expenseReport[category_lower] = round(new_spending, 2)
         self.user.save()
         return self.expenseReport[category_lower]
+
+    def remove_expense(self, category: str, amount: float):
+        current = self.expenseReport.get(category, 0.0)
+        # Prevent removing more money than has been spent in the category
+        if amount > current:
+            raise ValueError(f"Cannot remove {amount:.2f} {self.user.currency}. Current spending in '{category}' is only {current:.2f}.")
+        
+        self.expenseReport[category] = round(current - amount, 2)
+        self.user.save()  
     
     def get_status_report(self):
+        # Build a formatted plain-text status summary report table
         report = []
         report.append(f"===== Financial Summary for {self.user.name} =====")
         report.append(f"Account Base Currency: {self.user.currency}")

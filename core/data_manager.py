@@ -1,6 +1,6 @@
 """
 Data Manager Module
-Manages JSON database state preservation, user record mutations, 
+Manages JSON database state preservation, user record mutations,
 and input validation configurations.
 """
 import os
@@ -15,12 +15,15 @@ def set_database_file(filename):
 
 def load_database():
     try:
+        # Load JSON database safely with UTF-8 encoding
         with open(DATABASE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
+        # Return an empty user structure if the file is missing or corrupted
         return {"users": {}}
 
 def save_database(data):
+    # Use atomic file writing (.tmp file renamed via os.replace) to prevent data corruption
     temp_file = f"{DATABASE_FILE}.tmp"
     with open(temp_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
@@ -28,7 +31,7 @@ def save_database(data):
 
 def load_user(username):
     db = load_database()
-    # Default template tracks the account's base currency
+    # Return user template with default financial structures if user is new
     return db["users"].get(username, {"currency": "USD", "budget_limit": {}, "current_expenses": {}})
 
 def save_user(username, user_data_dict):
@@ -49,6 +52,7 @@ def get_all_usernames():
     return list(db["users"].keys())
 
 def cat_v(category_name):
+    # Validate category input against allowed application standards
     if not category_name:
         return False
     return category_name.lower().strip() in VALID_CATEGORIES

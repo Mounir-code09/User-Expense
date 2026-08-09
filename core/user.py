@@ -2,16 +2,22 @@
 User Entities Module
 Manages user profile data structures and currency conversion delegators.
 """
-from data_manager import load_user, save_user, get_all_usernames, delete_user_data
-from currency_service import currency_service
+from .data_manager import load_user, save_user, get_all_usernames, delete_user_data
+from .currency_service import currency_service
 
 class User_class:
     def __init__(self, name):
         self.name = name.strip().capitalize()
+
+        # Load existing user profile data from storage
         user_data = load_user(self.name)
+
         self.currency = user_data.get("currency", "USD")
         self.budget_limit = user_data.get("budget_limit", {})
         self.current_expenses = user_data.get("current_expenses", {})
+
+        # Automatically save new users upon initialization
+        self.save()
 
     def to_dict(self):
         return {
@@ -41,9 +47,11 @@ class User_class:
         if self.currency == new_currency:
             return
             
+        # Recalculate and convert all saved budget thresholds to the new currency
         for cat, limit in self.budget_limit.items():
             self.budget_limit[cat] = self.change_currency(limit, self.currency, new_currency)
             
+        # Recalculate and convert all logged expenses to the new currency
         for cat, expense in self.current_expenses.items():
             self.current_expenses[cat] = self.change_currency(expense, self.currency, new_currency)
             
