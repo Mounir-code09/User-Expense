@@ -62,7 +62,7 @@ Built with **Python, CustomTkinter, Matplotlib, and JSON**, the application foll
 ## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/expense-tracker.git
+git clone https://github.com/Mounir-code09/User-Expense.git
 cd expense-tracker
 ```
 
@@ -85,6 +85,7 @@ from core.gui_app import start_app
 
 start_app("Database.json")
 ```
+
 
 ---
 
@@ -612,3 +613,5 @@ Its current scope includes:
 * Light/dark GUI theming
 
 The architecture is intentionally modular so additional features—such as new currencies, database backends, reporting systems, or alternative interfaces—can be introduced without tightly coupling them to the existing GUI.
+=======
+```
