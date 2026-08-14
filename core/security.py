@@ -1,7 +1,7 @@
-"""Password security, validation, and lockout management."""
+"""Password security, validation, and persistent lockout management."""
 import hashlib
 import hmac
-import os
+import secrets
 import time
 
 from .data_manager import (
@@ -11,6 +11,11 @@ from .data_manager import (
     save_user,
     user_exists,
 )
+from .exceptions import (
+    AccountLockedError,
+    AuthenticationError,
+    PasswordValidationError,
+)
 
 
 class SecurityManager:
@@ -18,6 +23,7 @@ class SecurityManager:
 
     MAX_ATTEMPTS = 3
     LOCKOUT_DURATION = 30
+    HASH_ITERATIONS = 600_000
 
     @staticmethod
     def _get_security_meta(username):
@@ -29,22 +35,37 @@ class SecurityManager:
 
     @staticmethod
     def hash_password(password):
-        """Hash a password using PBKDF2-SHA256 with a random salt."""
-        salt = os.urandom(16).hex()
+        """Hash a password using PBKDF2-SHA256 with a cryptographically secure salt."""
+        salt = secrets.token_hex(16)
         pwd_hash = hashlib.pbkdf2_hmac(
-            "sha256", password.encode("utf-8"), bytes.fromhex(salt), 100_000
+            "sha256",
+            password.encode("utf-8"),
+            bytes.fromhex(salt),
+            SecurityManager.HASH_ITERATIONS,
         ).hex()
         return f"{salt}:{pwd_hash}"
 
     @staticmethod
     def verify_password(stored_hash, provided_password):
-        """Verify provided password against stored salt:hash string."""
+        """Verify provided password against stored salt:hash using constant-time comparison."""
         try:
             salt, expected_hash = stored_hash.split(":")
             pwd_hash = hashlib.pbkdf2_hmac(
-                "sha256", provided_password.encode("utf-8"), bytes.fromhex(salt), 100_000
+                "sha256",
+                provided_password.encode("utf-8"),
+                bytes.fromhex(salt),
+                SecurityManager.HASH_ITERATIONS,
             ).hex()
-            return hmac.compare_digest(pwd_hash, expected_hash)
+            if hmac.compare_digest(pwd_hash, expected_hash):
+                return True
+
+            legacy_hash = hashlib.pbkdf2_hmac(
+                "sha256",
+                provided_password.encode("utf-8"),
+                bytes.fromhex(salt),
+                100_000,
+            ).hex()
+            return hmac.compare_digest(legacy_hash, expected_hash)
         except Exception:
             return False
 
@@ -55,6 +76,8 @@ class SecurityManager:
             return False, "Password is required."
         if len(password) < 8:
             return False, "Password must be at least 8 characters long."
+        if len(password) > 128:
+            return False, "Password cannot exceed 128 characters."
         if not any(c.isupper() for c in password):
             return False, "Password must contain at least one uppercase letter."
         if not any(c.islower() for c in password):
@@ -80,6 +103,8 @@ class SecurityManager:
         norm_name = normalize_username(username)
         if not norm_name:
             return False, "Username is required."
+        if len(norm_name) > 50:
+            return False, "Username cannot exceed 50 characters."
 
         if user_exists(norm_name):
             return False, "Username already exists."
@@ -113,7 +138,6 @@ class SecurityManager:
         if remaining > 0:
             return remaining
 
-        # Lockout period expired: reset lockout state
         user_data["lockout_until"] = 0
         user_data["failed_attempts"] = 0
         save_user(norm_name, user_data)

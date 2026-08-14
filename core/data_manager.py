@@ -1,4 +1,4 @@
-"""Database helpers for users, categories, transactions, and JSON persistence."""
+"""Database helpers for users, categories, transactions, incomes, and JSON persistence."""
 import copy
 import json
 import os
@@ -17,6 +17,7 @@ DEFAULT_USER_TEMPLATE = {
     "categories": DEFAULT_CATEGORIES.copy(),
     "budget_limits": {},
     "transactions": [],
+    "incomes": [],
     "password_hash": "",
     "failed_attempts": 0,
     "lockout_until": 0,
@@ -69,21 +70,21 @@ def normalize_username(name):
 
 
 def _migrate_user_data(raw_data):
-    """Migrate legacy user profile schemas to support transactions and custom categories."""
+    """Migrate legacy user profile schemas to support transactions, incomes, and custom categories."""
     profile = default_user_profile()
     profile.update(raw_data)
 
-    # Migrate legacy category list
     if "categories" not in profile or not profile["categories"]:
         profile["categories"] = DEFAULT_CATEGORIES.copy()
 
-    # Migrate legacy singular 'budget_limit' key to 'budget_limits'
     if "budget_limit" in profile and "budget_limits" not in raw_data:
         profile["budget_limits"] = profile.pop("budget_limit")
 
-    # Migrate legacy current_expenses totals into initial transaction records if empty
     if "transactions" not in profile:
         profile["transactions"] = []
+
+    if "incomes" not in profile:
+        profile["incomes"] = []
 
     if not profile["transactions"] and "current_expenses" in profile:
         for cat, amount in profile["current_expenses"].items():

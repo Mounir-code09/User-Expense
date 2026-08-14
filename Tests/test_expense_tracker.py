@@ -3,6 +3,7 @@ import pytest
 from core.user import User
 from core.expense_tracker import ExpenseTracker
 from core.data_manager import DEFAULT_CATEGORIES
+from core.exceptions import InvalidAmountError, InvalidCategoryError
 
 
 @pytest.fixture
@@ -16,6 +17,9 @@ def test_tracker(monkeypatch):
                 "transactions": [
                     {"id": "tx_1", "date": "2026-08-01", "category": "food", "amount": 30.0, "note": "Lunch"},
                     {"id": "tx_2", "date": "2026-08-02", "category": "transport", "amount": 65.0, "note": "Train"},
+                ],
+                "incomes": [
+                    {"id": "inc_1", "date": "2026-08-01", "source": "Salary", "amount": 2500.0, "note": "Paycheck"},
                 ],
                 "password_hash": "ab:cd",
                 "failed_attempts": 0,
@@ -44,11 +48,11 @@ def test_remove_expense_subtracts_from_total(test_tracker):
 
 def test_remove_expense_rejects_exceeding_or_negative(test_tracker):
     tracker = test_tracker
-    with pytest.raises(ValueError, match="greater than zero"):
+    with pytest.raises(InvalidAmountError, match="greater than zero"):
         tracker.remove_expense("food", 0)
-    with pytest.raises(ValueError, match="greater than zero"):
+    with pytest.raises(InvalidAmountError, match="greater than zero"):
         tracker.remove_expense("food", -5)
-    with pytest.raises(ValueError, match="only"):
+    with pytest.raises(InvalidAmountError, match="only"):
         tracker.remove_expense("food", 50.0)
 
 
@@ -59,13 +63,15 @@ def test_status_report_formatting(test_tracker):
     assert "Transport" in report
     assert "❌ OVER" in report
     assert "Total Spent:" in report
+    assert "Total Income:" in report
+    assert "Net Savings:" in report
 
 
 def test_add_expense_rejects_invalid_inputs(test_tracker):
     tracker = test_tracker
-    with pytest.raises(ValueError, match="greater than zero"):
+    with pytest.raises(InvalidAmountError, match="greater than zero"):
         tracker.add_expense("food", 0)
-    with pytest.raises(ValueError, match="greater than zero"):
+    with pytest.raises(InvalidAmountError, match="greater than zero"):
         tracker.add_expense("food", -10)
-    with pytest.raises(ValueError, match="not a recognized category"):
+    with pytest.raises(InvalidCategoryError, match="not a recognized category"):
         tracker.add_expense("unregistered_category", 50.0)

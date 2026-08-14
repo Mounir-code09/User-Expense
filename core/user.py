@@ -1,4 +1,4 @@
-"""User profile model, transaction ledger, and profile container."""
+"""User profile model, transaction & income ledgers, and profile container."""
 import copy
 import csv
 from datetime import datetime
@@ -13,10 +13,15 @@ from .data_manager import (
     normalize_username,
     save_user,
 )
+from .exceptions import (
+    CategoryAlreadyExistsError,
+    InvalidAmountError,
+    InvalidCategoryError,
+)
 
 
 class User:
-    """Represents a single user financial profile with budgets and transactions."""
+    """Represents a single user financial profile with budgets, expenses, and incomes."""
 
     def __init__(self, name):
         self.name = normalize_username(name)
@@ -30,6 +35,7 @@ class User:
         self.categories = copy.deepcopy(user_data.get("categories", DEFAULT_CATEGORIES.copy()))
         self.budget_limits = copy.deepcopy(user_data.get("budget_limits", {}))
         self.transactions = copy.deepcopy(user_data.get("transactions", []))
+        self.incomes = copy.deepcopy(user_data.get("incomes", []))
         self.password_hash = user_data.get("password_hash", "")
         self.failed_attempts = user_data.get("failed_attempts", 0)
         self.lockout_until = user_data.get("lockout_until", 0)
@@ -58,6 +64,7 @@ class User:
             "categories": self.categories,
             "budget_limits": self.budget_limits,
             "transactions": self.transactions,
+            "incomes": self.incomes,
             "password_hash": self.password_hash,
             "failed_attempts": self.failed_attempts,
             "lockout_until": self.lockout_until,
@@ -77,9 +84,9 @@ class User:
         """Add a custom category to the user's profile."""
         clean_name = category_name.lower().strip()
         if not clean_name:
-            raise ValueError("Category name cannot be blank.")
+            raise InvalidCategoryError("Category name cannot be blank.")
         if clean_name in [c.lower() for c in self.categories]:
-            raise ValueError(f"Category '{clean_name}' already exists.")
+            raise CategoryAlreadyExistsError(f"Category '{clean_name}' already exists.")
         self.categories.append(clean_name)
         self.save()
         return clean_name
@@ -88,10 +95,14 @@ class User:
         """Set spending limit for category."""
         category = category_clean.lower().strip()
         if not self.is_valid_category(category):
-            raise ValueError(f"'{category}' is not a recognized category.")
-        limit_float = float(limit)
+            raise InvalidCategoryError(f"'{category}' is not a recognized category.")
+        try:
+            limit_float = float(limit)
+        except (ValueError, TypeError):
+            raise InvalidAmountError("Budget limit must be a valid number.")
+
         if limit_float < 0:
-            raise ValueError("Budget limit cannot be negative.")
+            raise InvalidAmountError("Budget limit cannot be negative.")
         self.budget_limits[category] = round(limit_float, 2)
         self.save()
         return self
@@ -104,20 +115,24 @@ class User:
         """Add an expense transaction with date and note."""
         category = category_clean.lower().strip()
         if not self.is_valid_category(category):
-            raise ValueError(f"'{category}' is not a recognized category.")
+            raise InvalidCategoryError(f"'{category}' is not a recognized category.")
 
-        amount_float = float(amount)
+        try:
+            amount_float = float(amount)
+        except (ValueError, TypeError):
+            raise InvalidAmountError("Expense amount must be a valid number.")
+
         if not allow_negative and amount_float <= 0:
-            raise ValueError("Expense amount must be greater than zero.")
+            raise InvalidAmountError("Expense amount must be greater than zero.")
         elif allow_negative and amount_float == 0:
-            raise ValueError("Adjustment amount cannot be zero.")
+            raise InvalidAmountError("Adjustment amount cannot be zero.")
 
-        if not date:
+        if not date or not date.strip():
             date_str = datetime.now().strftime("%Y-%m-%d")
         else:
             try:
-                datetime.strptime(date, "%Y-%m-%d")
-                date_str = date
+                datetime.strptime(date.strip(), "%Y-%m-%d")
+                date_str = date.strip()
             except ValueError:
                 date_str = datetime.now().strftime("%Y-%m-%d")
 
@@ -151,6 +166,57 @@ class User:
             txs = [tx for tx in txs if tx.get("date", "").startswith(month)]
         return sorted(txs, key=lambda tx: tx.get("date", ""), reverse=True)
 
+    def add_income(self, source, amount, note="", date=None):
+        """Record an income entry (e.g. Salary, Freelance, Investments)."""
+        source_clean = source.strip().title() if source else "General Income"
+        try:
+            amount_float = float(amount)
+        except (ValueError, TypeError):
+            raise InvalidAmountError("Income amount must be a valid number.")
+
+        if amount_float <= 0:
+            raise InvalidAmountError("Income amount must be greater than zero.")
+
+        if not date or not date.strip():
+            date_str = datetime.now().strftime("%Y-%m-%d")
+        else:
+            try:
+                datetime.strptime(date.strip(), "%Y-%m-%d")
+                date_str = date.strip()
+            except ValueError:
+                date_str = datetime.now().strftime("%Y-%m-%d")
+
+        income_entry = {
+            "id": f"inc_{uuid.uuid4().hex[:8]}",
+            "date": date_str,
+            "source": source_clean,
+            "amount": round(amount_float, 2),
+            "note": note.strip() if note else "",
+        }
+        self.incomes.append(income_entry)
+        self.save()
+        return income_entry
+
+    def delete_income(self, income_id):
+        """Delete an income record by ID."""
+        initial_count = len(self.incomes)
+        self.incomes = [inc for inc in self.incomes if inc.get("id") != income_id]
+        if len(self.incomes) < initial_count:
+            self.save()
+            return True
+        return False
+
+    def get_incomes(self, month=None):
+        """Get list of income entries sorted descending by date."""
+        entries = self.incomes
+        if month:
+            entries = [inc for inc in entries if inc.get("date", "").startswith(month)]
+        return sorted(entries, key=lambda inc: inc.get("date", ""), reverse=True)
+
+    def total_income_of_user(self):
+        """Sum all recorded income entries."""
+        return round(sum(inc.get("amount", 0.0) for inc in self.incomes), 2)
+
     def get_category_expenses(self):
         """Calculate total spending per category from transactions."""
         totals = {cat.lower(): 0.0 for cat in self.categories}
@@ -171,6 +237,17 @@ class User:
         total_budget = sum(self.budget_limits.values())
         return round(total_budget - self.total_expenses_of_user(), 2)
 
+    def get_net_savings(self):
+        """Calculate Total Income minus Total Expenses."""
+        return round(self.total_income_of_user() - self.total_expenses_of_user(), 2)
+
+    def get_savings_rate(self):
+        """Calculate percentage of income saved."""
+        total_inc = self.total_income_of_user()
+        if total_inc <= 0:
+            return 0.0
+        return round((self.get_net_savings() / total_inc) * 100, 1)
+
     def get_top_category(self):
         """Return (category, amount) with the highest spending."""
         expenses = self.get_category_expenses()
@@ -180,12 +257,37 @@ class User:
         top_cat = max(active, key=active.get)
         return top_cat.capitalize(), active[top_cat]
 
+    def get_category_budget_progress(self):
+        """Return progress metrics for all categories with configured budgets."""
+        expenses = self.get_category_expenses()
+        progress_list = []
+        for cat, limit in self.budget_limits.items():
+            if limit <= 0:
+                continue
+            spent = expenses.get(cat, 0.0)
+            pct = round((spent / limit) * 100, 1)
+            if pct > 100:
+                status = "danger"
+            elif pct >= 75:
+                status = "warning"
+            else:
+                status = "success"
+            progress_list.append({
+                "category": cat.capitalize(),
+                "spent": spent,
+                "limit": limit,
+                "percentage": pct,
+                "ratio": min(spent / limit, 1.0),
+                "status": status,
+            })
+        return progress_list
+
     def change_currency(self, amount, from_currency, to_currency):
         """Convert amount between currencies."""
         return currency_service.convert(amount, from_currency, to_currency)
 
     def convert_account_currency(self, new_currency):
-        """Convert all budgets and transactions to a new currency."""
+        """Convert all budgets, transactions, and incomes to a new currency."""
         if self.currency == new_currency:
             return
 
@@ -197,6 +299,11 @@ class User:
         for tx in self.transactions:
             tx["amount"] = self.change_currency(
                 tx["amount"], self.currency, new_currency
+            )
+
+        for inc in self.incomes:
+            inc["amount"] = self.change_currency(
+                inc["amount"], self.currency, new_currency
             )
 
         self.currency = new_currency
@@ -219,18 +326,29 @@ class User:
     purge = reset_category
 
     def export_to_csv(self, filepath):
-        """Export all user transactions to a CSV file."""
+        """Export all user transactions and income entries to a CSV file."""
         with open(filepath, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["Transaction ID", "Date", "Category", "Amount", "Currency", "Note"])
+            writer.writerow(["Type", "ID", "Date", "Category/Source", "Amount", "Currency", "Note"])
             for tx in sorted(self.transactions, key=lambda t: t.get("date", "")):
                 writer.writerow([
+                    "Expense",
                     tx.get("id", ""),
                     tx.get("date", ""),
                     tx.get("category", "").capitalize(),
                     f"{tx.get('amount', 0.0):.2f}",
                     self.currency,
                     tx.get("note", ""),
+                ])
+            for inc in sorted(self.incomes, key=lambda i: i.get("date", "")):
+                writer.writerow([
+                    "Income",
+                    inc.get("id", ""),
+                    inc.get("date", ""),
+                    inc.get("source", "Income"),
+                    f"{inc.get('amount', 0.0):.2f}",
+                    self.currency,
+                    inc.get("note", ""),
                 ])
         return filepath
 

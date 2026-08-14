@@ -3,8 +3,9 @@ import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+import matplotlib.ticker as ticker
 
-from .theme import CARD_BG, CHART_COLORS, PRIMARY, PRIMARY_HOVER, SUCCESS, DANGER
+from .theme import CARD_BG, CHART_COLORS, PRIMARY, PRIMARY_HOVER, SUCCESS, DANGER, format_amount
 
 
 class ChartViewer:
@@ -30,8 +31,8 @@ class ChartViewer:
 
         chart_win = ctk.CTkToplevel(parent_root)
         chart_win.title("Financial Visual Analytics")
-        chart_win.geometry("680x640")
-        chart_win.minsize(620, 580)
+        chart_win.geometry("720x640")
+        chart_win.minsize(640, 580)
         chart_win.transient(parent_root)
         chart_win.focus_set()
 
@@ -54,7 +55,7 @@ class ChartViewer:
         view_toggle.pack(fill="x")
         view_toggle.set("Spending Distribution" if has_expenses else "Budget Allocation")
 
-        fig = Figure(figsize=(6.5, 4.8), dpi=100)
+        fig = Figure(figsize=(6.8, 4.8), dpi=100)
         fig.patch.set_facecolor(bg_color)
         canvas = FigureCanvasTkAgg(fig, master=chart_win)
         canvas_widget = canvas.get_tk_widget()
@@ -72,7 +73,7 @@ class ChartViewer:
                     ax.text(0.5, 0.5, "No spending recorded yet", ha="center", va="center", color=text_color, fontsize=13)
                     ax.axis("off")
                 else:
-                    labels = list(active.keys())
+                    labels = [f"{k}\n({format_amount(v, currency)})" for k, v in active.items()]
                     amounts = list(active.values())
                     _, _, autotexts = ax.pie(
                         amounts,
@@ -80,7 +81,7 @@ class ChartViewer:
                         autopct="%1.1f%%",
                         startangle=140,
                         colors=CHART_COLORS[: len(labels)],
-                        textprops={"color": text_color, "fontsize": 10},
+                        textprops={"color": text_color, "fontsize": 9, "weight": "bold"},
                     )
                     for autotext in autotexts:
                         autotext.set_color("#ffffff")
@@ -93,7 +94,7 @@ class ChartViewer:
                     ax.text(0.5, 0.5, "No category budgets configured", ha="center", va="center", color=text_color, fontsize=13)
                     ax.axis("off")
                 else:
-                    labels = list(active.keys())
+                    labels = [f"{k}\n({format_amount(v, currency)})" for k, v in active.items()]
                     amounts = list(active.values())
                     _, _, autotexts = ax.pie(
                         amounts,
@@ -101,7 +102,7 @@ class ChartViewer:
                         autopct="%1.1f%%",
                         startangle=140,
                         colors=CHART_COLORS[: len(labels)],
-                        textprops={"color": text_color, "fontsize": 10},
+                        textprops={"color": text_color, "fontsize": 9, "weight": "bold"},
                     )
                     for autotext in autotexts:
                         autotext.set_color("#ffffff")
@@ -123,7 +124,6 @@ class ChartViewer:
 
                 ax.barh(y - height / 2, budget_vals, height, label="Budget Limit", color="#6366f1", alpha=0.85)
                 
-                # Color spent bars based on whether limit exceeded
                 spent_colors = [
                     DANGER[0] if (budgets.get(c, 0) > 0 and expenses.get(c, 0) > budgets.get(c, 0)) else SUCCESS[0]
                     for c in cats
@@ -131,9 +131,10 @@ class ChartViewer:
                 ax.barh(y + height / 2, spent_vals, height, label="Actual Spent", color=spent_colors, alpha=0.9)
 
                 ax.set_yticks(y)
-                ax.set_yticklabels(cat_names, color=text_color, fontsize=10)
+                ax.set_yticklabels(cat_names, color=text_color, fontsize=10, weight="bold")
                 ax.tick_params(colors=text_color)
-                ax.set_xlabel(f"Amount ({currency})", color=text_color, fontsize=11)
+                ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, p: f"{x:,.0f}"))
+                ax.set_xlabel(f"Amount ({currency})", color=text_color, fontsize=11, weight="bold")
                 ax.set_title("Budget vs. Actual Spending", color=text_color, fontsize=14, pad=15, weight="bold")
                 ax.legend(facecolor=card_color, edgecolor=text_color, labelcolor=text_color, loc="lower right")
                 ax.grid(axis="x", linestyle="--", alpha=0.3)
