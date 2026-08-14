@@ -46,6 +46,9 @@ Thumbs.db
 *.swp
 *.swo
 
-# Application Database & Local Logs
+# Application Database, Caches & Backups
 Database.json
+*.tmp
+*.bak
+last_known_rates.json
 *.log

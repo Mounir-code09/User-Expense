@@ -1,4 +1,4 @@
-"""Reusable CustomTkinter modal dialogs."""
+"""CustomTkinter modal dialogs for authentication and inputs."""
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 
@@ -10,8 +10,8 @@ from .theme import (
 )
 
 
-class BaseModal(ctk.CTkSetupWindow if hasattr(ctk, "CTkSetupWindow") else ctk.CTkToplevel):
-    """Base modal dialog window with automatic centering."""
+class BaseModal(ctk.CTkToplevel):
+    """Base modal dialog window with centering."""
 
     def __init__(self, master, title, width=400, height=320):
         super().__init__(master)
@@ -23,28 +23,28 @@ class BaseModal(ctk.CTkSetupWindow if hasattr(ctk, "CTkSetupWindow") else ctk.CT
 
         # Center relative to master
         self.update_idletasks()
-        x = master.winfo_x() + (master.winfo_width() // 2) - (width // 2)
-        y = master.winfo_y() + (master.winfo_height() // 2) - (height // 2)
-        self.geometry(f"+{x}+{y}")
+        if master:
+            x = master.winfo_x() + (master.winfo_width() // 2) - (width // 2)
+            y = master.winfo_y() + (master.winfo_height() // 2) - (height // 2)
+            self.geometry(f"+{x}+{y}")
 
         self.transient(master)
         self.grab_set()
-
         self._result = None
 
     def get_result(self):
+        """Wait for window to close and return result."""
         self.wait_window(self)
         return self._result
 
 
 class SignInModal(BaseModal):
-    """User login modal with username and password fields."""
+    """User login dialog with username and password inputs."""
 
     def __init__(self, users_container, master=None):
         super().__init__(master, title="Sign In", width=420, height=360)
         self.users = users_container
         self._username_result = None
-
         self._build_ui()
 
     def _build_ui(self):
@@ -74,6 +74,7 @@ class SignInModal(BaseModal):
         ctk.CTkLabel(inner, text="Password:", font=("Segoe UI", 12, "bold"), text_color=BODY).pack(anchor="w")
         self.pass_entry = ctk.CTkEntry(inner, width=320, height=38, font=("Segoe UI", 12), show="*")
         self.pass_entry.pack(pady=(4, 20))
+        self.pass_entry.bind("<Return>", lambda e: self._submit())
 
         ctk.CTkButton(
             inner,
@@ -102,7 +103,7 @@ class SignInModal(BaseModal):
                     title="Account Locked",
                     message=f"Too many failed attempts. Account is locked for {remaining} more seconds.",
                     icon="warning",
-                    master=self.master
+                    master=self.master,
                 )
             else:
                 CTkMessagebox(title="Access Denied", message="Invalid username or password.", icon="cancel", master=self.master)
@@ -112,12 +113,13 @@ class SignInModal(BaseModal):
         self.destroy()
 
     def get_username(self):
+        """Wait for window to close and return logged in username."""
         self.wait_window(self)
         return self._username_result
 
 
 class SignUpModal(BaseModal):
-    """User registration modal with password confirmation field."""
+    """User registration dialog with password strength enforcement."""
 
     def __init__(self, users_container, master=None):
         super().__init__(master, title="Create Account", width=420, height=460)
@@ -156,6 +158,7 @@ class SignUpModal(BaseModal):
         ctk.CTkLabel(inner, text="Re-enter Password:", font=("Segoe UI", 11, "bold"), text_color=BODY).pack(anchor="w")
         self.confirm_pass_entry = ctk.CTkEntry(inner, width=320, height=36, font=("Segoe UI", 12), show="*")
         self.confirm_pass_entry.pack(pady=(2, 18))
+        self.confirm_pass_entry.bind("<Return>", lambda e: self._submit())
 
         ctk.CTkButton(
             inner,
@@ -188,29 +191,17 @@ class SignUpModal(BaseModal):
         self.destroy()
 
     def get_username(self):
+        """Wait for window to close and return registered username."""
         self.wait_window(self)
         return self._username_result
 
 
 class SwitchAccountModal(BaseModal):
-    """Modal for switching user account with password verification."""
+    """Modal for switching accounts with password check."""
 
     def __init__(self, users_container, current_user=None, master=None):
         super().__init__(master, title="Switch Account", width=380, height=340)
         self.users = users_container
-
-        # Auto-detect current user from master window if not provided
-        if not current_user and master:
-            for attr in ("current_user", "username", "user"):
-                if hasattr(master, attr):
-                    val = getattr(master, attr)
-                    if isinstance(val, str):
-                        current_user = val
-                        break
-                    elif hasattr(val, "name"):
-                        current_user = val.name
-                        break
-
         self.current_user = normalize_username(current_user) if current_user else None
         self._username_result = None
         self._build_ui()
@@ -220,9 +211,8 @@ class SwitchAccountModal(BaseModal):
         inner.pack(fill="both", expand=True, padx=20, pady=20)
 
         ctk.CTkLabel(inner, text="Select Account to Switch To:", font=("Segoe UI", 12, "bold"), text_color=TITLE).pack(anchor="w", pady=(0, 4))
-        
+
         all_users = self.users.show_users()
-        # Filter out current user from selection list
         if self.current_user:
             users_list = [u for u in all_users if normalize_username(u) != self.current_user]
         else:
@@ -235,6 +225,7 @@ class SwitchAccountModal(BaseModal):
         ctk.CTkLabel(inner, text="Password:", font=("Segoe UI", 12, "bold"), text_color=TITLE).pack(anchor="w", pady=(0, 4))
         self.pass_entry = ctk.CTkEntry(inner, width=320, height=36, font=("Segoe UI", 12), show="*")
         self.pass_entry.pack(pady=(0, 20))
+        self.pass_entry.bind("<Return>", lambda e: self._submit())
 
         ctk.CTkButton(
             inner,
@@ -270,7 +261,7 @@ class SwitchAccountModal(BaseModal):
                     title="Account Locked",
                     message=f"Too many failed attempts. Account is locked for {remaining} more seconds.",
                     icon="warning",
-                    master=self.master
+                    master=self.master,
                 )
             else:
                 CTkMessagebox(title="Access Denied", message="Invalid password for this account.", icon="cancel", master=self.master)
@@ -280,12 +271,13 @@ class SwitchAccountModal(BaseModal):
         self.destroy()
 
     def get_username(self):
+        """Wait for window to close and return switched username."""
         self.wait_window(self)
         return self._username_result
 
 
 class CTkInputModal(BaseModal):
-    """Single text input prompt modal."""
+    """Prompt modal for text input."""
 
     def __init__(self, title, text, show=None, master=None):
         super().__init__(master, title=title, width=380, height=220)
@@ -320,12 +312,13 @@ class CTkInputModal(BaseModal):
         self.destroy()
 
     def get_input(self):
+        """Wait for window to close and return entered string."""
         self.wait_window(self)
         return self._input_result
 
 
 class CTkDropdownDialog(BaseModal):
-    """Dropdown selector modal for choosing from list of options."""
+    """Dropdown selection modal."""
 
     def __init__(self, title, text, values, master=None):
         super().__init__(master, title=title, width=380, height=220)
@@ -360,5 +353,6 @@ class CTkDropdownDialog(BaseModal):
         self.destroy()
 
     def get_input(self):
+        """Wait for window to close and return selected option."""
         self.wait_window(self)
         return self._selection_result

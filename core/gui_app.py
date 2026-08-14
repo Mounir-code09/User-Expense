@@ -18,15 +18,15 @@ ctk.set_default_color_theme("blue")
 
 
 class ExpenseApp(ctk.CTk):
-    """Root window controlling authentication flow, user sessions, and the dashboard."""
+    """Root window controlling authentication flow, user sessions, and dashboard."""
 
-    def __init__(self, data_file: str):
+    def __init__(self, data_file):
         super().__init__()
         set_database_file(data_file)
 
         self.title("Expenses Tracker Dashboard")
-        self.geometry("860x680")
-        self.minsize(780, 620)
+        self.geometry("860x640")
+        self.minsize(780, 580)
         self.configure(fg_color=APP_BG)
         self.resizable(True, True)
 
@@ -41,7 +41,7 @@ class ExpenseApp(ctk.CTk):
         self._build_startup_ui()
 
     def on_close(self):
-        """Persist the active session and cancel background timers before exit."""
+        """Save active session and cancel background timers before exit."""
         if self.user:
             self.user.save()
         try:
@@ -52,7 +52,7 @@ class ExpenseApp(ctk.CTk):
         self.destroy()
 
     def _build_startup_ui(self):
-        """Render the welcome screen with Sign In and Sign Up options."""
+        """Render welcome screen with Sign In and Sign Up options."""
         self.startup_frame = ctk.CTkFrame(self, fg_color=APP_BG, corner_radius=0)
         self.startup_frame.pack(fill="both", expand=True)
 
@@ -132,11 +132,11 @@ class ExpenseApp(ctk.CTk):
         if username:
             self._load_user_workspace(username)
 
-    def _load_user_workspace(self, username: str):
-        """Transition from the welcome screen to the main dashboard."""
+    def _load_user_workspace(self, username):
+        """Transition from welcome screen to the main dashboard."""
         if hasattr(self, "startup_frame") and self.startup_frame.winfo_exists():
             self.startup_frame.destroy()
-            
+
         self.user = User_class(username)
         self.tracker = ExpenseTracker(self.user)
         self.actions = UIActions(self.user, self.tracker, self.users, self)
@@ -146,7 +146,7 @@ class ExpenseApp(ctk.CTk):
         self._start_network_monitoring()
 
     def switch_user_workflow(self, username=None):
-        """Log out or switch directly to another authenticated profile."""
+        """Log out or switch to another user profile."""
         if self.user:
             self.user.save()
 
@@ -166,14 +166,14 @@ class ExpenseApp(ctk.CTk):
             self._build_startup_ui()
 
     def _build_dashboard_ui(self):
-        """Construct the main expense-management dashboard."""
+        """Construct the main expense management dashboard."""
         header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(pady=(18, 6), fill="x", padx=30)
+        header.pack(pady=(22, 10), fill="x", padx=36)
 
         ctk.CTkLabel(
             header,
             text=f"Welcome, {self.user.name}!",
-            font=("Segoe UI", 22, "bold"),
+            font=("Segoe UI", 24, "bold"),
             text_color=TITLE,
         ).pack(side="left")
 
@@ -188,26 +188,15 @@ class ExpenseApp(ctk.CTk):
         ctk.CTkLabel(
             currency_frame,
             text="Account Currency:",
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 12, "bold"),
             text_color=BODY,
         ).pack(side="left", padx=(0, 10))
-
-        ctk.CTkButton(
-            currency_frame,
-            text="Revert to USD",
-            command=lambda: self.actions.change_account_currency("USD", self.currency_selector),
-            width=110,
-            height=30,
-            fg_color=SUCCESS,
-            hover_color=SUCCESS_HOVER,
-            font=("Segoe UI", 11, "bold"),
-        ).pack(side="right", padx=(10, 0))
 
         self.currency_selector = ctk.CTkOptionMenu(
             currency_frame,
             values=["USD", "EUR", "GBP", "JPY", "CAD"],
-            width=90,
-            height=30,
+            width=95,
+            height=32,
             fg_color=PRIMARY,
             button_color=PRIMARY_HOVER,
             command=lambda val: self.actions.change_account_currency(val, self.currency_selector),
@@ -217,20 +206,20 @@ class ExpenseApp(ctk.CTk):
 
         ctk.CTkLabel(
             self,
-            text="Select an action below. All amounts are recorded in your account currency.",
-            font=("Segoe UI", 11),
+            text="Manage your expenses, set limits, and view visual breakdowns below.",
+            font=("Segoe UI", 12),
             text_color=HIGHLIGHT,
-        ).pack(pady=(0, 12))
+        ).pack(pady=(0, 16))
 
         grid = ctk.CTkFrame(self, fg_color="transparent")
-        grid.pack(fill="both", expand=True, padx=22, pady=6)
+        grid.pack(fill="both", expand=True, padx=36, pady=8)
         grid.columnconfigure(0, weight=1)
         grid.columnconfigure(1, weight=1)
 
         btn_style = {
-            "width": 250,
-            "height": 38,
-            "font": ("Segoe UI", 12, "bold"),
+            "width": 260,
+            "height": 44,
+            "font": ("Segoe UI", 13, "bold"),
             "corner_radius": 10,
             "fg_color": PRIMARY,
             "hover_color": PRIMARY_HOVER,
@@ -238,32 +227,27 @@ class ExpenseApp(ctk.CTk):
 
         buttons_left = [
             ("1. Set a Budget", self.actions.set_budget),
-            ("2. Check Budget", self.actions.check_budget),
-            ("3. Add Expense", self.actions.add_expense),
-            ("4. Remove Expense", self.actions.remove_expense),
-            ("5. View Status Table", self.actions.show_status),
-            ("6. Visual Breakdown", self.actions.show_chart),
+            ("2. Add Expense", self.actions.add_expense),
+            ("3. Remove Expense", self.actions.remove_expense),
+            ("4. Reset Category", self.actions.reset_category),
         ]
         buttons_right = [
-            ("7. Total Expenses", self.actions.total_expenses),
-            ("8. Purge Category", self.actions.purge),
-            ("9. Show Users", self.actions.show_users),
-            ("10. Find User", self.actions.get_user),
-            ("11. Switch Account", self.actions.switch_user_profile),
-            ("12. Delete User", self.actions.delete_user),
+            ("5. View Status Table", self.actions.show_status),
+            ("6. Visual Breakdown", self.actions.show_chart),
+            ("7. Switch Account", self.actions.switch_user_profile),
         ]
 
         for idx, (label, command) in enumerate(buttons_left):
             ctk.CTkButton(grid, text=label, command=command, **btn_style).grid(
-                row=idx, column=0, padx=10, pady=5, sticky="ew"
+                row=idx, column=0, padx=14, pady=8, sticky="ew"
             )
         for idx, (label, command) in enumerate(buttons_right):
             ctk.CTkButton(grid, text=label, command=command, **btn_style).grid(
-                row=idx, column=1, padx=10, pady=5, sticky="ew"
+                row=idx, column=1, padx=14, pady=8, sticky="ew"
             )
 
         bottom = ctk.CTkFrame(self, fg_color="transparent")
-        bottom.pack(fill="x", padx=30, pady=(12, 22))
+        bottom.pack(fill="x", padx=36, pady=(16, 26))
 
         ctk.CTkButton(
             bottom,
@@ -288,7 +272,7 @@ class ExpenseApp(ctk.CTk):
         ).pack(side="right", fill="x", expand=True, padx=(10, 0))
 
     def _start_network_monitoring(self):
-        """Refresh exchange rates and update the connectivity indicator every 10 seconds."""
+        """Refresh exchange rates and update connectivity status periodically."""
         if not self.winfo_exists():
             return
 
@@ -301,7 +285,7 @@ class ExpenseApp(ctk.CTk):
         self.network_job = self.after(10_000, self._start_network_monitoring)
 
 
-def start_app(data_file: str):
+def start_app(data_file):
     """Launch the Expense Tracker desktop application."""
     app = ExpenseApp(data_file)
     app.mainloop()

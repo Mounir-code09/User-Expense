@@ -1,4 +1,4 @@
-"""Pie-chart viewer for expense summaries."""
+"""Pie chart visualization for expense distribution."""
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -11,8 +11,8 @@ class ChartViewer:
     """Builds embedded expense charts for the app window."""
 
     @staticmethod
-    def show_expense_pie_chart(parent_root, expense_data: dict, currency: str = "USD"):
-        """Display pie chart of expense distribution. Filters zero/negative values."""
+    def show_expense_pie_chart(parent_root, expense_data, currency="USD"):
+        """Display pie chart of expense distribution."""
         active_expenses = {
             category.capitalize(): amount
             for category, amount in expense_data.items()

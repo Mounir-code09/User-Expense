@@ -13,6 +13,8 @@ def mock_ram_db(monkeypatch):
                 "budget_limit": {"food": 150.0, "transport": 60.0},
                 "current_expenses": {"food": 40.0, "transport": 10.0},
                 "password_hash": "ab" * 16 + ":" + "cd" * 32,
+                "failed_attempts": 0,
+                "lockout_until": 0,
             }
         }
     }
@@ -31,6 +33,13 @@ def test_user_initialization_loads_correct_data(mock_ram_db):
     assert user.currency == "USD"
     assert user.budget_limit["food"] == 150.0
     assert user.current_expenses["food"] == 40.0
+
+
+def test_user_blank_name_raises_error(mock_ram_db):
+    with pytest.raises(ValueError, match="blank"):
+        User_class("")
+    with pytest.raises(ValueError, match="blank"):
+        User_class("   ")
 
 
 def test_set_budget_limit_valid_and_invalid(mock_ram_db):
@@ -57,12 +66,12 @@ def test_currency_conversion_updates_data(mock_ram_db):
     assert converted == initial_expense
 
 
-def test_purge_removes_category_keys(mock_ram_db):
+def test_reset_category_removes_keys(mock_ram_db):
     user = User_class("Alice")
     assert "food" in user.current_expenses
     assert "food" in user.budget_limit
 
-    removed = user.purge("food")
+    removed = user.reset_category("food")
     assert removed == {"budget_limit": 150.0, "expense": 40.0}
     assert "food" not in user.current_expenses
     assert "food" not in user.budget_limit
@@ -73,6 +82,9 @@ def test_users_container_management(mock_ram_db):
     user_alice = container.get_user("Alice")
     assert user_alice.name == "Alice"
     assert "Alice" in get_all_usernames()
+
+    assert container.add_user("Alice") is False
+    assert container.get_user("NonExistent") is None
 
     assert container.delete_user("Alice") is True
     assert "Alice" not in get_all_usernames()

@@ -1,4 +1,5 @@
 """Currency conversion, exchange rates, and offline fallback tests."""
+import threading
 import pytest
 from core.currency_service import CurrencyService
 
@@ -6,16 +7,12 @@ from core.currency_service import CurrencyService
 def test_currency_conversion_fallback():
     """Offline mode uses static fallback exchange rates."""
     service = CurrencyService()
-    # Force empty live rates and offline mode to trigger the fallback dictionary.
     service.rates = {}
     service.is_offline = True
 
-    # USD -> EUR fallback: 1 USD = 0.92 EUR, so 100 USD becomes 92.00 EUR.
     converted_eur = service.convert(100.0, "USD", "EUR")
     assert converted_eur == 92.0
 
-    # Cross-currency path converts through USD: EUR -> USD -> GBP.
-    # The exact number depends on the fallback table; we only assert it is a float.
     converted_cross = service.convert(100.0, "EUR", "GBP")
     assert isinstance(converted_cross, float)
 
@@ -40,17 +37,21 @@ def test_failure_threshold_logic():
     assert service.is_offline is False
     assert service._consecutive_failures == 0
 
-    # First failure: tracked but still online.
     service._handle_failure()
     assert service._consecutive_failures == 1
     assert service.is_offline is False
 
-    # Second failure: still under the threshold.
     service._handle_failure()
     assert service._consecutive_failures == 2
     assert service.is_offline is False
 
-    # Third failure: hits the threshold and triggers offline mode.
     service._handle_failure()
     assert service._consecutive_failures == 3
     assert service.is_offline is True
+
+
+def test_fetch_rates_async():
+    """Async rate fetching returns a running or completed thread."""
+    service = CurrencyService()
+    thread = service.fetch_rates_async()
+    assert isinstance(thread, threading.Thread)
