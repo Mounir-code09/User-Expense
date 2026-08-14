@@ -5,4 +5,4 @@ Desktop expense tracker with multi-currency support, budget management, and secu
 multi-user profiles. All persistent data lives in ``Database.json``.
 """
 
-#__version__ = "2.0.0"
+__version__ = "2.0.0"
