@@ -1,29 +1,11 @@
-"""
-UI Actions Module
------------------
-Event handlers and user-facing notifications for the expense tracker dashboard.
-
-This module contains `UIActions` controller
-that maps each dashboard button to a business-logic operation. All reusable pop-up
-dialogs live in the separate `core.modals` module so that presentation code is
-not mixed with orchestration code here.
-
-Every input path validates categories through ``cat_v`` and normalizes usernames through
-``normalize_username`` so data stays consistent with the core layer.
-"""
+"""Dashboard actions and validation for the expense app."""
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 
-from .data_manager import cat_v, VALID_CATEGORIES, normalize_username
-from .modals import (
-    CTkDropdownDialog,
-    CTkInputModal,
-    SwitchAccountModal,
-)
+from .data_manager import VALID_CATEGORIES, cat_v, normalize_username
+from .modals import CTkDropdownDialog, CTkInputModal, SwitchAccountModal
 from .security import SecurityManager
-from .theme import (
-    CARD_BG, PRIMARY, PRIMARY_HOVER,
-)
+from .theme import CARD_BG, PRIMARY, PRIMARY_HOVER
 
 
 class UIActions:
@@ -36,11 +18,7 @@ class UIActions:
         self.root = app_root
 
     def category_dropdown_menu(self, prompt_title: str):
-        """
-        Show a category picker and return the normalized lowercase key.
-
-        Returns ``None`` when the user cancels or selects an invalid category.
-        """
+        """Show category picker and return normalized lowercase key or None if cancelled."""
         formatted_options = [cat.capitalize() for cat in VALID_CATEGORIES]
         dialog = CTkDropdownDialog(
             title="Category Selection",
@@ -58,7 +36,7 @@ class UIActions:
         return normalized
 
     def set_budget(self):
-        """Prompt for a category and an amount, then store the budget limit."""
+        """Prompt for category and amount, then save budget limit."""
         category = self.category_dropdown_menu("set a budget for")
         if not category:
             return
@@ -81,7 +59,7 @@ class UIActions:
             CTkMessagebox(title="Invalid Input", message=str(exc), icon="cancel")
 
     def check_budget(self):
-        """Prompt for a category and display its configured budget limit."""
+        """Show budget limit for selected category."""
         category = self.category_dropdown_menu("check the budget for")
         if not category:
             return
@@ -93,7 +71,7 @@ class UIActions:
         )
 
     def add_expense(self):
-        """Prompt for a category and an amount, then record the expense."""
+        """Prompt for category and amount, record expense with budget warning."""
         category = self.category_dropdown_menu("add an expense to")
         if not category:
             return
@@ -137,7 +115,7 @@ class UIActions:
             CTkMessagebox(title="Invalid Input", message="Please enter a valid number.", icon="cancel")
 
     def remove_expense(self):
-        """Prompt for a category and an amount, then subtract spending from it."""
+        """Prompt for category and amount to subtract from expenses."""
         category = self.category_dropdown_menu("remove an expense from")
         if not category:
             return
@@ -166,7 +144,7 @@ class UIActions:
             CTkMessagebox(title="Error", message=str(exc), icon="cancel")
 
     def purge(self):
-        """Prompt for a category and clear both its budget and its expense history."""
+        """Clear budget and expense history for selected category."""
         category = self.category_dropdown_menu("purge")
         if not category:
             return
@@ -182,11 +160,7 @@ class UIActions:
         )
 
     def change_account_currency(self, new_currency: str, currency_selector):
-        """
-        Re-denominate all stored data into a new base currency.
-
-        The user confirms the conversion first; on refusal the selector is reset.
-        """
+        """Convert all budgets and expenses to new currency with user confirmation."""
         if self.user.currency == new_currency:
             return
         msg = CTkMessagebox(
@@ -206,7 +180,7 @@ class UIActions:
             currency_selector.set(self.user.currency)
 
     def show_status(self):
-        """Open a read-only window displaying the full financial status report."""
+        """Display read-only window with full financial status report."""
         status_win = ctk.CTkToplevel(self.root)
         status_win.title("Financial Status Dashboard")
         status_win.geometry("560x420")
@@ -308,6 +282,14 @@ class UIActions:
             CTkMessagebox(title="Not Found", message="That profile does not exist.", icon="cancel")
             return
 
+        if del_name == self.user.name:
+            CTkMessagebox(
+                title="Cannot Delete Active Profile",
+                message="You cannot delete the profile you are currently logged into.",
+                icon="cancel",
+            )
+            return
+        
         pwd_dialog = CTkInputModal(
             title="Confirm Identity",
             text=f"Enter the password for '{del_name}':",

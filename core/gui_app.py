@@ -1,21 +1,17 @@
-"""
-GUI App Module
---------------
-Main application window: startup authentication, dashboard layout, and background tasks.
-"""
+"""Main application window and startup flow."""
 import customtkinter as ctk
 
-from .user import User_class, Users
-from .expense_tracker import ExpenseTracker
-from .data_manager import set_database_file
 from .currency_service import currency_service
+from .data_manager import set_database_file
+from .expense_tracker import ExpenseTracker
 from .modals import SignInModal, SignUpModal
-from .ui_actions import UIActions
 from .theme import (
-    APP_BG, CARD_BG, CARD_BORDER, ACCENT_BAR, TITLE, BODY, MUTED, HIGHLIGHT,
-    PRIMARY, PRIMARY_HOVER, SUCCESS, SUCCESS_HOVER, DANGER, DANGER_HOVER,
-    NEUTRAL, NEUTRAL_HOVER, ONLINE, OFFLINE,
+    ACCENT_BAR, APP_BG, BODY, CARD_BG, CARD_BORDER, DANGER, DANGER_HOVER,
+    HIGHLIGHT, MUTED, NEUTRAL, NEUTRAL_HOVER, OFFLINE, ONLINE, PRIMARY,
+    PRIMARY_HOVER, SUCCESS, SUCCESS_HOVER, TITLE,
 )
+from .ui_actions import UIActions
+from .user import User_class, Users
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -44,10 +40,6 @@ class ExpenseApp(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self._build_startup_ui()
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
     def on_close(self):
         """Persist the active session and cancel background timers before exit."""
         if self.user:
@@ -58,10 +50,6 @@ class ExpenseApp(ctk.CTk):
         except Exception:
             pass
         self.destroy()
-
-    # ------------------------------------------------------------------
-    # Startup & authentication
-    # ------------------------------------------------------------------
 
     def _build_startup_ui(self):
         """Render the welcome screen with Sign In and Sign Up options."""
@@ -176,10 +164,6 @@ class ExpenseApp(ctk.CTk):
         else:
             self.configure(fg_color=APP_BG)
             self._build_startup_ui()
-
-    # ------------------------------------------------------------------
-    # Dashboard
-    # ------------------------------------------------------------------
 
     def _build_dashboard_ui(self):
         """Construct the main expense-management dashboard."""
@@ -302,10 +286,6 @@ class ExpenseApp(ctk.CTk):
             height=42,
             corner_radius=10,
         ).pack(side="right", fill="x", expand=True, padx=(10, 0))
-
-    # ------------------------------------------------------------------
-    # Background network polling
-    # ------------------------------------------------------------------
 
     def _start_network_monitoring(self):
         """Refresh exchange rates and update the connectivity indicator every 10 seconds."""

@@ -1,35 +1,31 @@
-"""
-Security Module
----------------
-Handles PBKDF2 password hashing, password strength validation, user registration,
-login verification, and brute-force protection (lockout after 3 failed attempts).
-"""
+"""Password handling and login checks."""
+
 import hashlib
 import os
 import time
-from .data_manager import load_user, save_user, normalize_username, user_exists
+
+from .data_manager import load_user, normalize_username, save_user, user_exists
 
 
 class SecurityManager:
-    """Manages authentication credentials and brute-force protection."""
+    """Handles password hashing, validation, and login lockouts."""
 
-    # Brute-force protection state tracking
     _failed_attempts = {}
     _lockout_until = {}
 
     MAX_ATTEMPTS = 3
-    LOCKOUT_DURATION = 30  # Lockout duration in seconds after 3 failed attempts
+    LOCKOUT_DURATION = 30
 
     @staticmethod
-    def hash_password(password: str) -> str:
-        """Hash a password using PBKDF2-HMAC-SHA256 with a random 16-byte salt."""
+    def hash_password(password: str):
+        """Hash password with PBKDF2-SHA256 and random salt."""
         salt = os.urandom(16)
         pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100_000)
         return f"{salt.hex()}:{pwd_hash.hex()}"
 
     @staticmethod
-    def verify_password(stored_hash: str, provided_password: str) -> bool:
-        """Verify a provided password against a stored salt:hash string."""
+    def verify_password(stored_hash: str, provided_password: str):
+        """Verify provided password against stored hash."""
         try:
             salt_hex, hash_hex = stored_hash.split(":")
             salt = bytes.fromhex(salt_hex)
@@ -40,60 +36,72 @@ class SecurityManager:
 
     @staticmethod
     def validate_password_strength(password: str):
-        """
-        Validate password complexity:
-        - Minimum 8 characters
-        - At least one uppercase letter
-        - At least one lowercase letter
-        - At least one digit
-        """
-        if len(password) < 8:
+        """Check password meets requirements: 8+ chars, upper, lower, digit. Returns (bool, str)."""
+        if not password or len(password) < 8:
             return False, "Password must be at least 8 characters long."
-        if not any(c.isupper() for c in password):
+        if not any(char.isupper() for char in password):
             return False, "Password must contain at least one uppercase letter."
-        if not any(c.islower() for c in password):
+        if not any(char.islower() for char in password):
             return False, "Password must contain at least one lowercase letter."
-        if not any(c.isdigit() for c in password):
+        if not any(char.isdigit() for char in password):
             return False, "Password must contain at least one digit."
         return True, ""
 
     @staticmethod
-    def register_user(username: str, password: str) -> bool:
-        """Register a new user profile with a hashed password stored atomically in the database."""
+    def validate_password_match(password: str, confirm_password: str):
+        """Verify password confirmation matches password. Returns (bool, str)."""
+        if not password or not password.strip():
+            return False, "Password is required."
+        if not confirm_password or not confirm_password.strip():
+            return False, "Password confirmation is required."
+        if password != confirm_password:
+            return False, "Passwords do not match."
+        return True, ""
+
+    @staticmethod
+    def register_user(username: str, password: str, confirm_password: str) :
+        """Register user with validated username and matching passwords. Returns (bool, str)."""
         norm_name = normalize_username(username)
+        if not norm_name or not norm_name.strip():
+            return False, "Username is required."
+
         if user_exists(norm_name):
-            return False
+            return False, f"Username '{norm_name}' already exists."
+
+        is_valid, msg = SecurityManager.validate_password_strength(password)
+        if not is_valid:
+            return False, msg
+
+        is_match, msg = SecurityManager.validate_password_match(password, confirm_password)
+        if not is_match:
+            return False, msg
 
         user_data = load_user(norm_name)
         user_data["password_hash"] = SecurityManager.hash_password(password)
         save_user(norm_name, user_data)
-        return True
+        return True, ""
 
     @staticmethod
-    def get_lockout_remaining(username: str) -> int:
-        """Return remaining lockout seconds for a user, or 0 if not locked out."""
+    def get_lockout_remaining(username: str):
+        """Return the remaining lockout time in seconds."""
         norm_name = normalize_username(username)
         current_time = time.time()
         if norm_name in SecurityManager._lockout_until:
             remaining = int(SecurityManager._lockout_until[norm_name] - current_time)
             if remaining > 0:
                 return remaining
-            else:
-                # Expired
-                del SecurityManager._lockout_until[norm_name]
-                SecurityManager._failed_attempts[norm_name] = 0
+            del SecurityManager._lockout_until[norm_name]
+            SecurityManager._failed_attempts[norm_name] = 0
         return 0
 
     @staticmethod
-    def verify_login(username: str, password: str) -> bool:
-        """
-        Verify login credentials, enforcing an in-memory brute-force lockout 
-        after 3 consecutive failures for 30 seconds.
-        """
+    def verify_login(username: str, password: str):
+        """Authenticate user and enforce 3-attempt lockout for 30 seconds."""
         norm_name = normalize_username(username)
-        current_time = time.time()
+        if not norm_name:
+            return False
 
-        # Check if the user is currently locked out
+        current_time = time.time()
         if SecurityManager.get_lockout_remaining(norm_name) > 0:
             return False
 
@@ -104,17 +112,15 @@ class SecurityManager:
             return False
 
         if SecurityManager.verify_password(stored_hash, password):
-            # Successful login: reset failure counters
             SecurityManager._failed_attempts[norm_name] = 0
             if norm_name in SecurityManager._lockout_until:
                 del SecurityManager._lockout_until[norm_name]
             return True
-        else:
-            # Failed attempt: increment counter and check threshold
-            attempts = SecurityManager._failed_attempts.get(norm_name, 0) + 1
-            SecurityManager._failed_attempts[norm_name] = attempts
 
-            if attempts >= SecurityManager.MAX_ATTEMPTS:
-                SecurityManager._lockout_until[norm_name] = current_time + SecurityManager.LOCKOUT_DURATION
+        attempts = SecurityManager._failed_attempts.get(norm_name, 0) + 1
+        SecurityManager._failed_attempts[norm_name] = attempts
 
-            return False
+        if attempts >= SecurityManager.MAX_ATTEMPTS:
+            SecurityManager._lockout_until[norm_name] = current_time + SecurityManager.LOCKOUT_DURATION
+
+        return False

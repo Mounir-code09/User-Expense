@@ -1,19 +1,12 @@
-"""
-Currency Exchange Service
--------------------------
-Fetches live exchange rates in a background thread and converts amounts with offline
-fallback rates when the network is unavailable.
-
-Thread-safe rate access is enforced via a lock so background updates never race with
-on-demand conversions on the main thread.
-"""
+"""Currency conversion and exchange-rate fetching."""
 import socket
 import threading
+
 import requests
 
 
 class CurrencyService:
-    """Singleton-friendly service for live and fallback currency conversion."""
+    """Provides live or fallback conversion rates."""
 
     def __init__(self):
         self.is_offline = False
@@ -21,7 +14,6 @@ class CurrencyService:
         self._consecutive_failures = 0
         self._rates_lock = threading.Lock()
 
-        # Static fallback rates (USD base) used when live data is unavailable
         self._fallback_rates = {
             "USD": 1.0,
             "EUR": 0.92,
@@ -31,11 +23,7 @@ class CurrencyService:
         }
 
     def _check_internet_connection(self, host: str = "8.8.8.8", port: int = 53, timeout: float = 2):
-        """
-        Probe internet connectivity without mutating global socket defaults.
-
-        Uses a scoped connection attempt so other modules are unaffected.
-        """
+        """Check internet connectivity without affecting other modules."""
         try:
             with socket.create_connection((host, port), timeout=timeout):
                 return True
@@ -43,22 +31,22 @@ class CurrencyService:
             return False
 
     def _handle_failure(self):
-        """Track consecutive failures and flip to offline mode at the threshold."""
+        """Increment failures and switch offline mode after 3 consecutive failures."""
         self._consecutive_failures += 1
         if self._consecutive_failures >= 3:
             self.is_offline = True
 
     def _handle_success(self):
-        """Reset failure counters and mark the service as online."""
+        """Reset failure count and mark service as online."""
         self._consecutive_failures = 0
         self.is_offline = False
 
     def fetch_rates_async(self):
-        """Schedule a background rate fetch so the GUI thread is never blocked."""
+        """Fetch exchange rates in background thread without blocking GUI."""
         threading.Thread(target=self._fetch_rates_task, daemon=True).start()
 
     def _fetch_rates_task(self):
-        """Worker that downloads the latest USD-based exchange rates."""
+        """Download latest USD-based exchange rates from API."""
         if not self._check_internet_connection():
             self._handle_failure()
             return
@@ -78,26 +66,15 @@ class CurrencyService:
             self._handle_failure()
 
     def _active_rates(self):
-        """
-        Return the best available rate table.
-
-        Prefers live rates when online; falls back to static estimates when offline
-        or when no live data has been fetched yet.
-        """
+        """Return live rates if online, otherwise fallback to static estimates."""
         with self._rates_lock:
             if not self.is_offline and self.rates:
                 return dict(self.rates)
         return dict(self._fallback_rates)
 
     def convert(self, amount, from_currency: str, to_currency: str):
-        """
-        Convert *amount* from *from_currency* to *to_currency* via USD cross-rates.
-
-        A no-op (still rounded to two decimals) when both currencies match.
-        """
+        """Convert amount between currencies via USD cross-rates. Returns rounded to 2 decimals."""
         if from_currency == to_currency:
-            # Round even for the same-currency case so every code path returns a
-            # consistent, currency-formatted value (e.g. 10 → 10.0).
             return round(amount, 2)
 
         rates = self._active_rates()

@@ -1,19 +1,10 @@
-"""
-Expense Tracking Module
------------------------
-Handles transaction updates and formatted status reports in the user's base currency.
-
-This business layer is the *single gate* for mutating spending data. It therefore
-re-validates every input (positive amounts, known categories) even though the GUI
-already checks it — defence in depth against any caller (GUI, tests, scripts) that
-might otherwise bypass the validation in ``ui_actions.py``.
-"""
-from .user import User_class
+"""Expense logic and summary reporting."""
 from .data_manager import VALID_CATEGORIES, cat_v
+from .user import User_class
 
 
 class ExpenseTracker:
-    """Tracks and reports spending for a single user profile."""
+    """Tracks user spending and budget-aware summaries."""
 
     def __init__(self, user: User_class):
         self.user = user
@@ -36,15 +27,9 @@ class ExpenseTracker:
         return self.expenseReport[category]
 
     def remove_expense(self, category: str, amount: float):
-        """
-        Subtract an expense from a category.
-
-        raises ValueError when the amount is non-positive, the category is invalid,
-            or the amount exceeds current spending.
-        """
+        """Subtract expense from category. Raise ValueError for invalid inputs."""
         category = category.lower().strip()
 
-        # Validate the category so a typo doesn't silently subtract from a stray key.
         if not cat_v(category):
             raise ValueError(f"'{category}' is not a recognized expense category.")
 
@@ -61,8 +46,6 @@ class ExpenseTracker:
 
         remaining = round(current - amount, 2)
 
-        # A category that reaches exactly zero is removed from the report entirely.
-        # This keeps the data clean and prevents a lot of "0.00" rows from piling up.
         if remaining == 0:
             self.expenseReport.pop(category, None)
         else:
@@ -71,7 +54,7 @@ class ExpenseTracker:
         self.user.save()
 
     def get_status_report(self):
-        """Build a plain-text financial summary table for all standard categories."""
+        """Generate plain-text financial summary showing spent vs budget per category."""
         report = [
             f"===== Financial Summary for {self.user.name} =====",
             f"Account Base Currency: {self.user.currency}",
@@ -92,5 +75,9 @@ class ExpenseTracker:
         return "\n".join(report)
 
     def search_expenses(self, category_lower: str):
-        """Return spending for a category, or ``None`` when no records exist."""
+        """Get total spending for category or None if no records exist."""
         return self.expenseReport.get(category_lower.lower().strip())
+
+    def total_expenses_of_user(self):
+            """Sum all recorded expenses."""
+            return sum(self.expenseReport.values())

@@ -1,22 +1,10 @@
-"""
-Currency Service Unit Tests
-===========================
-
-Validates :class:`core.currency_service.CurrencyService`: live conversion math,
-offline fallback rates, same-currency rounding, and the failure threshold.
-
-Why these tests matter
-----------------------
-Currency conversion touches every stored amount when a user changes their account's
-base currency. A rounding or cross-rate bug would silently corrupt financial data,
-so the conversion math and the offline fallback path are pinned down here.
-"""
+"""Currency conversion, exchange rates, and offline fallback tests."""
 import pytest
 from core.currency_service import CurrencyService
 
 
 def test_currency_conversion_fallback():
-    """Offline conversions must fall back to the static USD-based rate table."""
+    """Offline mode uses static fallback exchange rates."""
     service = CurrencyService()
     # Force empty live rates and offline mode to trigger the fallback dictionary.
     service.rates = {}
@@ -33,28 +21,21 @@ def test_currency_conversion_fallback():
 
 
 def test_same_currency_conversion():
-    """Converting a currency into itself must return the amount unchanged."""
+    """Same currency conversion returns amount unchanged."""
     service = CurrencyService()
     assert service.convert(50.0, "USD", "USD") == 50.0
     assert service.convert(250.50, "JPY", "JPY") == 250.50
 
 
 def test_same_currency_rounds_to_two_decimals():
-    """
-    The same-currency shortcut must round to 2 decimal places, matching the
-    cross-currency path, so all conversions are consistently formatted.
-    """
+    """All conversions are rounded consistently to 2 decimal places."""
     service = CurrencyService()
     assert service.convert(19.999, "USD", "USD") == 20.0
     assert service.convert(10.005, "EUR", "EUR") == 10.01
 
 
 def test_failure_threshold_logic():
-    """
-    The service flips to offline mode only after 3 consecutive failures.
-
-    This prevents a single transient network error from disabling live rates.
-    """
+    """Service switches to offline mode only after 3 consecutive failures."""
     service = CurrencyService()
     assert service.is_offline is False
     assert service._consecutive_failures == 0

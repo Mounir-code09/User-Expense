@@ -1,18 +1,4 @@
-"""
-DataManager Unit Tests
-======================
-
-Verifies the persistence layer responsible for reading/writing the JSON database.
-
-Why these tests matter
-----------------------
-``data_manager.py`` is the single source of truth for all user records. A regression
-here would silently corrupt or lose financial data, so every public function is
-covered: loading, saving, deleting, category validation, and username normalization.
-
-The ``clean_test_db`` fixture redirects the module to a throwaway temp file for each
-test, so the real ``Database.json`` is never touched.
-"""
+"""Data persistence and user record management tests."""
 import json
 import pytest
 from core.data_manager import (
@@ -30,12 +16,7 @@ from core.data_manager import (
 
 @pytest.fixture(autouse=True)
 def clean_test_db(tmp_path, monkeypatch):
-    """
-    Point ``core.data_manager`` at a fresh, empty database file for every test.
-
-    ``autouse=True`` injects this fixture automatically, guaranteeing test isolation:
-    no test can leak user records into the project's real ``Database.json``.
-    """
+    """Use fresh test database for each test to avoid contaminating real data."""
     test_file = tmp_path / "test_db.json"
     with open(test_file, "w", encoding="utf-8") as file:
         json.dump({"users": {}}, file)
@@ -43,10 +24,7 @@ def clean_test_db(tmp_path, monkeypatch):
 
 
 def test_load_database_behavior(monkeypatch):
-    """
-    Loading must return an empty ``{"users": {}}`` structure both for a fresh file
-    and for a missing file, so the app never crashes on a corrupt/absent database.
-    """
+    """Load returns empty structure for missing or empty files."""
     db_data = load_database()
     assert db_data == {"users": {}}
 
@@ -57,10 +35,7 @@ def test_load_database_behavior(monkeypatch):
 
 
 def test_category_validation():
-    """
-    ``cat_v`` must accept only the canonical categories, ignoring case and padding,
-    and reject everything else (including empty strings and unknown words).
-    """
+    """Validate categories are case-insensitive and only allow canonical names."""
     assert cat_v("food") is True
     assert cat_v("  FOOD  ") is True          # case- and whitespace-insensitive
     assert cat_v("  RENT  ") is False         # not in VALID_CATEGORIES
@@ -69,13 +44,13 @@ def test_category_validation():
 
 
 def test_normalize_username():
-    """Usernames are trimmed and title-cased so lookups stay consistent."""
+    """Normalize usernames to title-case for consistent lookups."""
     assert normalize_username("  alice  ") == "Alice"
     assert normalize_username("JOHN") == "John"
 
 
 def test_save_and_load_user():
-    """A saved profile must round-trip exactly and register the user as existing."""
+    """Saved profiles round-trip correctly and register as existing users."""
     username = "Charlie"
     profile_data = {
         "currency": "USD",
@@ -90,10 +65,7 @@ def test_save_and_load_user():
 
 
 def test_load_non_existent_user_returns_fallback_template():
-    """
-    Unknown users receive a blank profile template (with an empty password hash),
-    which is the safe default before a real account is registered.
-    """
+    """Unknown users receive blank profile template with empty password hash."""
     template = load_user("UnknownUser")
     assert template["currency"] == DEFAULT_USER_TEMPLATE["currency"]
     assert template["password_hash"] == ""

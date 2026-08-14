@@ -1,9 +1,4 @@
-"""
-User Entities Unit Tests
-========================
-
-Validates :class:`core.user.User_class` and :class:`core.user.Users`.
-"""
+"""User profile and container class tests."""
 import pytest
 from core.user import User_class, Users
 from core.data_manager import get_all_usernames

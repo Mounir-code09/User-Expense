@@ -1,28 +1,18 @@
-"""
-Matplotlib Chart Embedder
--------------------------
-Renders expense pie charts inside CustomTkinter windows using the object-oriented
-Figure API (no global pyplot state). Figures are properly disposed on close.
-"""
+"""Pie-chart viewer for expense summaries."""
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
-from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 
 from .theme import CHART_COLORS
 
 
 class ChartViewer:
-    """Static helpers for embedding Matplotlib charts in the GUI."""
+    """Builds embedded expense charts for the app window."""
 
     @staticmethod
     def show_expense_pie_chart(parent_root, expense_data: dict, currency: str = "USD"):
-        """
-        Open a pie chart window showing the distribution of logged expenses.
-
-        Categories with zero or negative totals are excluded. An info dialog is shown
-        when there is nothing to plot.
-        """
+        """Display pie chart of expense distribution. Filters zero/negative values."""
         active_expenses = {
             category.capitalize(): amount
             for category, amount in expense_data.items()

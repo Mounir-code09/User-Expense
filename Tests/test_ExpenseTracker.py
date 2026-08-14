@@ -1,9 +1,4 @@
-"""
-ExpenseTracker Logic Tests
-==========================
-
-Validates :class:`core.expense_tracker.ExpenseTracker`.
-"""
+"""Expense tracking and financial calculations tests."""
 import pytest
 from unittest.mock import Mock
 from core.expense_tracker import ExpenseTracker

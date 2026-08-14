@@ -1,22 +1,17 @@
-"""
-UI Modals Module
-----------------
-Provides custom dialogs, input prompts, dropdown selectors, and authentication modals
-built with CustomTkinter.
-"""
+"""Reusable CustomTkinter modal dialogs."""
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 
 from .security import SecurityManager
 from .data_manager import normalize_username
 from .theme import (
-    APP_BG, CARD_BG, CARD_BORDER, ACCENT_BAR, TITLE, BODY, MUTED,
-    PRIMARY, PRIMARY_HOVER, SUCCESS, SUCCESS_HOVER, DANGER, DANGER_HOVER,
+    APP_BG, CARD_BG, CARD_BORDER, TITLE, BODY,
+    PRIMARY, PRIMARY_HOVER, SUCCESS, SUCCESS_HOVER,
 )
 
 
 class BaseModal(ctk.CTkSetupWindow if hasattr(ctk, "CTkSetupWindow") else ctk.CTkToplevel):
-    """Base class for modal dialogs, handling centering, grabs, and dismissal."""
+    """Base modal dialog window with automatic centering."""
 
     def __init__(self, master, title, width=400, height=320):
         super().__init__(master)
@@ -43,7 +38,7 @@ class BaseModal(ctk.CTkSetupWindow if hasattr(ctk, "CTkSetupWindow") else ctk.CT
 
 
 class SignInModal(BaseModal):
-    """Modal dialog for authenticating an existing user account."""
+    """User login modal with username and password fields."""
 
     def __init__(self, users_container, master=None):
         super().__init__(master, title="Sign In", width=420, height=360)
@@ -122,10 +117,10 @@ class SignInModal(BaseModal):
 
 
 class SignUpModal(BaseModal):
-    """Modal dialog for registering a new user account."""
+    """User registration modal with password confirmation field."""
 
     def __init__(self, users_container, master=None):
-        super().__init__(master, title="Create Account", width=420, height=400)
+        super().__init__(master, title="Create Account", width=420, height=460)
         self.users = users_container
         self._username_result = None
         self._build_ui()
@@ -156,7 +151,11 @@ class SignUpModal(BaseModal):
 
         ctk.CTkLabel(inner, text="Password (min 8 chars, Upper, Lower, Digit):", font=("Segoe UI", 11, "bold"), text_color=BODY).pack(anchor="w")
         self.pass_entry = ctk.CTkEntry(inner, width=320, height=36, font=("Segoe UI", 12), show="*")
-        self.pass_entry.pack(pady=(2, 15))
+        self.pass_entry.pack(pady=(2, 8))
+
+        ctk.CTkLabel(inner, text="Re-enter Password:", font=("Segoe UI", 11, "bold"), text_color=BODY).pack(anchor="w")
+        self.confirm_pass_entry = ctk.CTkEntry(inner, width=320, height=36, font=("Segoe UI", 12), show="*")
+        self.confirm_pass_entry.pack(pady=(2, 18))
 
         ctk.CTkButton(
             inner,
@@ -172,19 +171,17 @@ class SignUpModal(BaseModal):
     def _submit(self):
         raw_name = self.user_entry.get()
         password = self.pass_entry.get()
+        confirm_password = self.confirm_pass_entry.get()
         username = normalize_username(raw_name)
 
-        if not username or not password:
+        if not username or not password or not confirm_password:
             CTkMessagebox(title="Error", message="All fields are required.", icon="cancel", master=self.master)
             return
 
-        is_valid, err_msg = SecurityManager.validate_password_strength(password)
-        if not is_valid:
-            CTkMessagebox(title="Weak Password", message=err_msg, icon="warning", master=self.master)
-            return
-
-        if not SecurityManager.register_user(username, password):
-            CTkMessagebox(title="Error", message=f"Username '{username}' already exists.", icon="cancel", master=self.master)
+        success, message = SecurityManager.register_user(username, password, confirm_password)
+        if not success:
+            title = "Password Mismatch" if "match" in message.lower() else "Error"
+            CTkMessagebox(title=title, message=message, icon="warning", master=self.master)
             return
 
         self._username_result = username
@@ -196,13 +193,13 @@ class SignUpModal(BaseModal):
 
 
 class SwitchAccountModal(BaseModal):
-    """Modal dialog allowing users to switch profiles with password verification, excluding the current user."""
+    """Modal for switching user account with password verification."""
 
     def __init__(self, users_container, current_user=None, master=None):
         super().__init__(master, title="Switch Account", width=380, height=340)
         self.users = users_container
 
-        # Auto-detect current user from master window attributes if not explicitly passed
+        # Auto-detect current user from master window if not provided
         if not current_user and master:
             for attr in ("current_user", "username", "user"):
                 if hasattr(master, attr):
@@ -225,7 +222,7 @@ class SwitchAccountModal(BaseModal):
         ctk.CTkLabel(inner, text="Select Account to Switch To:", font=("Segoe UI", 12, "bold"), text_color=TITLE).pack(anchor="w", pady=(0, 4))
         
         all_users = self.users.show_users()
-        # Strictly filter out the currently active user from the selection list
+        # Filter out current user from selection list
         if self.current_user:
             users_list = [u for u in all_users if normalize_username(u) != self.current_user]
         else:
@@ -288,7 +285,7 @@ class SwitchAccountModal(BaseModal):
 
 
 class CTkInputModal(BaseModal):
-    """Simple single-input text prompt modal."""
+    """Single text input prompt modal."""
 
     def __init__(self, title, text, show=None, master=None):
         super().__init__(master, title=title, width=380, height=220)
@@ -328,7 +325,7 @@ class CTkInputModal(BaseModal):
 
 
 class CTkDropdownDialog(BaseModal):
-    """Dropdown selection prompt modal."""
+    """Dropdown selector modal for choosing from list of options."""
 
     def __init__(self, title, text, values, master=None):
         super().__init__(master, title=title, width=380, height=220)

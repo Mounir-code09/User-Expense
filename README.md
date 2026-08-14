@@ -407,6 +407,14 @@ Passwords must contain:
 * At least one lowercase letter
 * At least one digit
 
+### Password Confirmation
+
+When creating a new account or changing passwords:
+
+* Users must re-enter their password for confirmation
+* Password and confirmation must match exactly
+* Mismatch is detected before account creation
+
 ### Brute-Force Protection
 
 After **3 consecutive failed login attempts**, the account is temporarily locked for **30 seconds**.
@@ -505,6 +513,13 @@ Tests:
 ### `test_security.py`
 
 Tests:
+
+* Password hashing and verification
+* Password strength validation (length, case, digits)
+* Password confirmation matching
+* Registration validation and constraints
+* Brute-force lockout enforcement
+* Account lockout recovery
 
 * Password hashing
 * Password verification
