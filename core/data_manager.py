@@ -1,20 +1,22 @@
-"""Database helpers for users, categories, and JSON persistence."""
+"""Database helpers for users, categories, transactions, and JSON persistence."""
 import copy
 import json
 import os
 import shutil
+import uuid
 
 DATABASE_FILE = "Database.json"
 
-VALID_CATEGORIES = [
+DEFAULT_CATEGORIES = [
     "food", "transport", "housing", "entertainment",
     "shopping", "health", "education", "miscellaneous",
 ]
 
 DEFAULT_USER_TEMPLATE = {
     "currency": "USD",
-    "budget_limit": {},
-    "current_expenses": {},
+    "categories": DEFAULT_CATEGORIES.copy(),
+    "budget_limits": {},
+    "transactions": [],
     "password_hash": "",
     "failed_attempts": 0,
     "lockout_until": 0,
@@ -22,18 +24,18 @@ DEFAULT_USER_TEMPLATE = {
 
 
 def default_user_profile():
-    """Return a copy of the default user template."""
+    """Return a fresh copy of the default user template."""
     return copy.deepcopy(DEFAULT_USER_TEMPLATE)
 
 
-def set_database_file(filename: str):
+def set_database_file(filename):
     """Set the active database file path."""
     global DATABASE_FILE
     DATABASE_FILE = filename
 
 
 def load_database():
-    """Load database from file or return empty structure if missing."""
+    """Load database from file or return empty structure if missing or corrupt."""
     if not os.path.exists(DATABASE_FILE):
         return {"users": {}}
     try:
@@ -44,7 +46,6 @@ def load_database():
             data.setdefault("users", {})
             return data
     except (json.JSONDecodeError, OSError):
-        # Backup corrupted file before resetting
         try:
             shutil.copy(DATABASE_FILE, f"{DATABASE_FILE}.corrupt.bak")
         except OSError:
@@ -52,7 +53,7 @@ def load_database():
         return {"users": {}}
 
 
-def save_database(data: dict):
+def save_database(data):
     """Write database safely using temporary file replacement."""
     temp_file = f"{DATABASE_FILE}.tmp"
     with open(temp_file, "w", encoding="utf-8") as file:
@@ -60,23 +61,57 @@ def save_database(data: dict):
     os.replace(temp_file, DATABASE_FILE)
 
 
-def normalize_username(name: str):
+def normalize_username(name):
     """Normalize username by trimming and title-casing."""
     if not name:
         return ""
     return name.strip().title()
 
 
-def load_user(username: str):
-    """Load user profile or return default template."""
+def _migrate_user_data(raw_data):
+    """Migrate legacy user profile schemas to support transactions and custom categories."""
+    profile = default_user_profile()
+    profile.update(raw_data)
+
+    # Migrate legacy category list
+    if "categories" not in profile or not profile["categories"]:
+        profile["categories"] = DEFAULT_CATEGORIES.copy()
+
+    # Migrate legacy singular 'budget_limit' key to 'budget_limits'
+    if "budget_limit" in profile and "budget_limits" not in raw_data:
+        profile["budget_limits"] = profile.pop("budget_limit")
+
+    # Migrate legacy current_expenses totals into initial transaction records if empty
+    if "transactions" not in profile:
+        profile["transactions"] = []
+
+    if not profile["transactions"] and "current_expenses" in profile:
+        for cat, amount in profile["current_expenses"].items():
+            if amount > 0:
+                profile["transactions"].append({
+                    "id": f"legacy_{uuid.uuid4().hex[:8]}",
+                    "date": "2026-01-01",
+                    "category": cat.lower().strip(),
+                    "amount": round(float(amount), 2),
+                    "note": "Initial balance",
+                })
+
+    return profile
+
+
+def load_user(username):
+    """Load user profile or return default template with schema migration."""
     norm_name = normalize_username(username)
     if not norm_name:
         return default_user_profile()
     database = load_database()
-    return database["users"].get(norm_name, default_user_profile())
+    raw = database["users"].get(norm_name)
+    if raw is None:
+        return default_user_profile()
+    return _migrate_user_data(raw)
 
 
-def save_user(username: str, user_data_dict: dict):
+def save_user(username, user_data_dict):
     """Persist a user profile to the database."""
     norm_name = normalize_username(username)
     if not norm_name:
@@ -86,7 +121,7 @@ def save_user(username: str, user_data_dict: dict):
     save_database(database)
 
 
-def delete_user_data(username: str):
+def delete_user_data(username):
     """Delete user record. Return True if user existed."""
     norm_name = normalize_username(username)
     if not norm_name:
@@ -105,16 +140,9 @@ def get_all_usernames():
     return list(database["users"].keys())
 
 
-def user_exists(username: str):
+def user_exists(username):
     """Check if username exists in database."""
     norm_name = normalize_username(username)
     if not norm_name:
         return False
     return norm_name in get_all_usernames()
-
-
-def cat_v(category_name: str):
-    """Validate if category is in VALID_CATEGORIES."""
-    if not category_name:
-        return False
-    return category_name.lower().strip() in VALID_CATEGORIES

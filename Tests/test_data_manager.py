@@ -1,4 +1,4 @@
-"""Data persistence and user record management tests."""
+"""Data persistence, custom categories, schema migration, and user management tests."""
 import json
 import os
 import pytest
@@ -8,10 +8,10 @@ from core.data_manager import (
     save_user,
     delete_user_data,
     get_all_usernames,
-    cat_v,
     user_exists,
     normalize_username,
     DEFAULT_USER_TEMPLATE,
+    DEFAULT_CATEGORIES,
 )
 
 
@@ -57,15 +57,6 @@ def test_empty_username_handling():
     assert "" not in get_all_usernames()
 
 
-def test_category_validation():
-    """Validate categories are case-insensitive and only allow canonical names."""
-    assert cat_v("food") is True
-    assert cat_v("  FOOD  ") is True
-    assert cat_v("  RENT  ") is False
-    assert cat_v("invalid_category") is False
-    assert cat_v("") is False
-
-
 def test_normalize_username():
     """Normalize usernames to title-case for consistent lookups."""
     assert normalize_username("  alice  ") == "Alice"
@@ -77,16 +68,42 @@ def test_save_and_load_user():
     username = "Charlie"
     profile_data = {
         "currency": "USD",
-        "budget_limit": {"food": 100.0},
-        "current_expenses": {},
+        "categories": DEFAULT_CATEGORIES.copy(),
+        "budget_limits": {"food": 100.0},
+        "transactions": [
+            {"id": "tx_1", "date": "2026-08-14", "category": "food", "amount": 25.0, "note": "Groceries"}
+        ],
         "password_hash": "salt:hash",
         "failed_attempts": 0,
         "lockout_until": 0,
     }
     save_user(username, profile_data)
-    assert load_user(username) == profile_data
+    loaded = load_user(username)
+    assert loaded["currency"] == "USD"
+    assert loaded["budget_limits"]["food"] == 100.0
+    assert len(loaded["transactions"]) == 1
     assert username in get_all_usernames()
     assert user_exists(username) is True
+
+
+def test_legacy_schema_migration():
+    """Legacy user profile dictionaries are automatically migrated to modern schema."""
+    legacy_profile = {
+        "currency": "EUR",
+        "budget_limit": {"transport": 50.0},
+        "current_expenses": {"transport": 20.0},
+        "password_hash": "legacy:hash",
+    }
+    save_user("LegacyUser", legacy_profile)
+    migrated = load_user("LegacyUser")
+
+    assert migrated["currency"] == "EUR"
+    assert "budget_limits" in migrated
+    assert migrated["budget_limits"]["transport"] == 50.0
+    assert "transactions" in migrated
+    assert len(migrated["transactions"]) == 1
+    assert migrated["transactions"][0]["category"] == "transport"
+    assert migrated["transactions"][0]["amount"] == 20.0
 
 
 def test_load_non_existent_user_returns_fallback_template():
@@ -94,6 +111,7 @@ def test_load_non_existent_user_returns_fallback_template():
     template = load_user("UnknownUser")
     assert template["currency"] == DEFAULT_USER_TEMPLATE["currency"]
     assert template["password_hash"] == ""
+    assert "categories" in template
 
 
 def test_delete_user_data():

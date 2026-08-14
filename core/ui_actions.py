@@ -1,9 +1,16 @@
-"""Dashboard actions and input handling for the expense app."""
+"""Dashboard actions, dialog management, and ledger operations."""
+import os
+from tkinter import filedialog
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 
-from .data_manager import VALID_CATEGORIES, cat_v
-from .modals import CTkDropdownDialog, CTkInputModal, SwitchAccountModal
+from .modals import (
+    AddExpenseModal,
+    CTkDropdownDialog,
+    CTkInputModal,
+    SwitchAccountModal,
+    TransactionHistoryModal,
+)
 from .theme import CARD_BG, PRIMARY, PRIMARY_HOVER
 
 
@@ -16,9 +23,14 @@ class UIActions:
         self.users = users_container
         self.root = app_root
 
+    def _refresh_dashboard(self):
+        """Helper to trigger metric card update on root window if supported."""
+        if hasattr(self.root, "refresh_summary_cards"):
+            self.root.refresh_summary_cards()
+
     def category_dropdown_menu(self, prompt_title):
         """Show category picker and return normalized key or None."""
-        formatted_options = [cat.capitalize() for cat in VALID_CATEGORIES]
+        formatted_options = [cat.capitalize() for cat in self.user.categories]
         dialog = CTkDropdownDialog(
             title="Category Selection",
             text=f"Select a category to {prompt_title}:",
@@ -29,8 +41,8 @@ class UIActions:
         if not selected:
             return None
         normalized = selected.lower().strip()
-        if not cat_v(normalized):
-            CTkMessagebox(title="Invalid Category", message="The selected category is not recognized.", icon="cancel")
+        if not self.user.is_valid_category(normalized):
+            CTkMessagebox(title="Invalid Category", message="The selected category is not recognized.", icon="cancel", master=self.root)
             return None
         return normalized
 
@@ -41,7 +53,7 @@ class UIActions:
             return
         dialog = CTkInputModal(
             title="Set Budget",
-            text=f"Budget limit ({self.user.currency}):",
+            text=f"Budget limit for {category.capitalize()} ({self.user.currency}):",
             master=self.root,
         )
         raw_limit = dialog.get_input()
@@ -49,70 +61,64 @@ class UIActions:
             return
         try:
             self.user.set_budget_limit(category, raw_limit)
+            self._refresh_dashboard()
             CTkMessagebox(
                 title="Budget Saved",
-                message=f"Limit for {category} set to {float(raw_limit):.2f} {self.user.currency}.",
-                icon="check",
+                message=f"Limit for {category.capitalize()} set to {float(raw_limit):.2f} {self.user.currency}.",
+                icon="check", master=self.root,
             )
         except ValueError as exc:
-            CTkMessagebox(title="Invalid Input", message=str(exc), icon="cancel")
+            CTkMessagebox(title="Invalid Input", message=str(exc), icon="cancel", master=self.root)
 
     def add_expense(self):
-        """Prompt for category and amount, record expense with budget warning."""
-        category = self.category_dropdown_menu("add an expense to")
-        if not category:
+        """Prompt for category, amount, note, and date, then record transaction."""
+        modal = AddExpenseModal(self.user.categories, currency=self.user.currency, master=self.root)
+        data = modal.get_expense_data()
+        if not data:
             return
-        dialog = CTkInputModal(
-            title="Add Expense",
-            text=f"Amount for {category} ({self.user.currency}):",
-            master=self.root,
-        )
-        raw_amount = dialog.get_input()
-        if not raw_amount:
-            return
-        try:
-            amount = float(raw_amount)
-            if amount <= 0.0:
-                CTkMessagebox(title="Invalid Amount", message="Please enter a positive amount.", icon="cancel")
+
+        category = data["category"]
+        amount = data["amount"]
+        note = data["note"]
+        date_str = data["date"]
+
+        budget_limit = self.user.budget_limits.get(category, 0.0)
+        current_spending = self.user.get_category_expenses().get(category, 0.0)
+
+        if budget_limit > 0 and (current_spending + amount) > budget_limit:
+            msg = CTkMessagebox(
+                title="Over Budget Warning",
+                message=(
+                    f"Adding {amount:.2f} {self.user.currency} will exceed your "
+                    f"budget for {category.capitalize()} ({budget_limit:.2f} {self.user.currency}).\n\n"
+                    f"Record transaction anyway?"
+                ),
+                icon="warning", option_1="No", option_2="Yes", master=self.root,
+            )
+            if msg.get() != "Yes":
                 return
 
-            budget_limit = self.user.budget_limit.get(category)
-            current_spending = self.tracker.expenseReport.get(category, 0.0)
-
-            if budget_limit is not None and budget_limit > 0 and (current_spending + amount) > budget_limit:
-                msg = CTkMessagebox(
-                    title="Over Budget",
-                    message=(
-                        f"Adding {amount:.2f} {self.user.currency} will exceed the "
-                        f"{category} limit.\nSave the transaction anyway?"
-                    ),
-                    icon="warning", option_1="No", option_2="Yes",
-                )
-                if msg.get() != "Yes":
-                    return
-
-            self.tracker.add_expense(category, amount)
-            CTkMessagebox(
-                title="Expense Recorded",
-                message=f"Logged {amount:.2f} {self.user.currency} under {category}.",
-                icon="check",
-            )
-        except ValueError:
-            CTkMessagebox(title="Invalid Input", message="Please enter a valid number.", icon="cancel")
+        self.user.add_transaction(category, amount, note=note, date=date_str)
+        self._refresh_dashboard()
+        CTkMessagebox(
+            title="Expense Recorded",
+            message=f"Logged {amount:.2f} {self.user.currency} under {category.capitalize()}.",
+            icon="check", master=self.root,
+        )
 
     def remove_expense(self):
-        """Prompt for category and amount to subtract from expenses."""
+        """Subtract expense from category."""
         category = self.category_dropdown_menu("remove an expense from")
         if not category:
             return
-        current_spent = self.tracker.expenseReport.get(category, 0.0)
+        current_spent = self.user.get_category_expenses().get(category, 0.0)
         if current_spent <= 0:
-            CTkMessagebox(title="No Expenses", message=f"No spending recorded in '{category}'.", icon="info")
+            CTkMessagebox(title="No Expenses", message=f"No spending recorded in '{category.capitalize()}'.", icon="info", master=self.root)
             return
 
         dialog = CTkInputModal(
             title="Remove Expense",
-            text=f"Current spending: {current_spent:.2f} {self.user.currency}\nAmount to remove:",
+            text=f"Current spending in {category.capitalize()}: {current_spent:.2f} {self.user.currency}\nAmount to subtract:",
             master=self.root,
         )
         raw_amount = dialog.get_input()
@@ -121,13 +127,62 @@ class UIActions:
         try:
             amount = float(raw_amount)
             self.tracker.remove_expense(category, amount)
+            self._refresh_dashboard()
             CTkMessagebox(
                 title="Expense Removed",
-                message=f"Removed {amount:.2f} {self.user.currency} from {category}.",
-                icon="check",
+                message=f"Subtracted {amount:.2f} {self.user.currency} from {category.capitalize()}.",
+                icon="check", master=self.root,
             )
         except ValueError as exc:
-            CTkMessagebox(title="Error", message=str(exc), icon="cancel")
+            CTkMessagebox(title="Error", message=str(exc), icon="cancel", master=self.root)
+
+    def show_transactions(self):
+        """Open scrollable transaction ledger modal."""
+        modal = TransactionHistoryModal(self.user, master=self.root)
+        self.root.wait_window(modal)
+        self._refresh_dashboard()
+
+    def add_custom_category(self):
+        """Prompt user for new category name and add to profile."""
+        dialog = CTkInputModal(
+            title="New Category",
+            text="Enter custom category name:",
+            master=self.root,
+        )
+        cat_name = dialog.get_input()
+        if not cat_name:
+            return
+        try:
+            created = self.user.add_custom_category(cat_name)
+            CTkMessagebox(
+                title="Category Added",
+                message=f"Custom category '{created.capitalize()}' added successfully!",
+                icon="check", master=self.root,
+            )
+        except ValueError as exc:
+            CTkMessagebox(title="Error", message=str(exc), icon="cancel", master=self.root)
+
+    def export_to_csv(self):
+        """Export all user transactions to a selected CSV file."""
+        default_file = f"expenses_{self.user.name.lower()}.csv"
+        filepath = filedialog.asksaveasfilename(
+            parent=self.root,
+            title="Export Expenses to CSV",
+            initialfile=default_file,
+            defaultextension=".csv",
+            filetypes=[("CSV Spreadsheet", "*.csv"), ("All Files", "*.*")],
+        )
+        if not filepath:
+            return
+        try:
+            self.user.export_to_csv(filepath)
+            CTkMessagebox(
+                title="Export Complete",
+                message=f"Transactions successfully exported to:\n{os.path.basename(filepath)}",
+                icon="check", master=self.root,
+            )
+        except OSError as exc:
+            CTkMessagebox(title="Export Failed", message=str(exc), icon="cancel", master=self.root)
 
     def reset_category(self):
         """Clear budget and expense history for selected category."""
@@ -135,35 +190,34 @@ class UIActions:
         if not category:
             return
         removed = self.user.reset_category(category)
+        self._refresh_dashboard()
         CTkMessagebox(
             title="Category Reset",
             message=(
-                f"Reset all data for {category}.\n"
+                f"Reset all data for {category.capitalize()}.\n"
                 f"  Budget removed: {removed['budget_limit']}\n"
-                f"  Expenses removed: {removed['expense']}"
+                f"  Expenses removed: {removed['expense']:.2f} {self.user.currency}"
             ),
-            icon="check",
+            icon="check", master=self.root,
         )
 
-    # Alias for backward compatibility
-    purge = reset_category
-
     def change_account_currency(self, new_currency, currency_selector):
-        """Convert all budgets and expenses to new currency with user confirmation."""
+        """Convert all budgets and transactions to new currency with user confirmation."""
         if self.user.currency == new_currency:
             return
         msg = CTkMessagebox(
             title="Convert Currency",
-            message=f"Convert all stored data from {self.user.currency} to {new_currency}?",
-            icon="question", option_1="Yes", option_2="No",
+            message=f"Convert all budgets and transactions from {self.user.currency} to {new_currency}?",
+            icon="question", option_1="Yes", option_2="No", master=self.root,
         )
         if msg.get() == "Yes":
             self.user.convert_account_currency(new_currency)
             currency_selector.set(new_currency)
+            self._refresh_dashboard()
             CTkMessagebox(
                 title="Currency Updated",
                 message=f"All amounts are now recorded in {new_currency}.",
-                icon="check",
+                icon="check", master=self.root,
             )
         else:
             currency_selector.set(self.user.currency)
@@ -172,7 +226,7 @@ class UIActions:
         """Display window with financial status report."""
         status_win = ctk.CTkToplevel(self.root)
         status_win.title("Financial Status Dashboard")
-        status_win.geometry("560x420")
+        status_win.geometry("580x440")
         status_win.configure(fg_color=CARD_BG)
         text_widget = ctk.CTkTextbox(status_win, font=("Consolas", 12), activate_scrollbars=True)
         text_widget.pack(fill="both", expand=True, padx=15, pady=15)
@@ -186,13 +240,9 @@ class UIActions:
         status_win.focus_set()
 
     def show_chart(self):
-        """Open pie chart of logged expense distribution."""
+        """Open 3-way interactive visual analytics window."""
         from .chart_viewer import ChartViewer
-        ChartViewer.show_expense_pie_chart(
-            parent_root=self.root,
-            expense_data=self.tracker.expenseReport,
-            currency=self.user.currency,
-        )
+        ChartViewer.show_expense_pie_chart(parent_root=self.root, user=self.user)
 
     def switch_user_profile(self):
         """Open account switch dialog and switch profile."""

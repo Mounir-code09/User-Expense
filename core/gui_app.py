@@ -1,4 +1,4 @@
-"""Main application window and startup flow."""
+"""Main application window, startup flow, and live dashboard metrics."""
 import customtkinter as ctk
 
 from .currency_service import currency_service
@@ -11,7 +11,7 @@ from .theme import (
     PRIMARY_HOVER, SUCCESS, SUCCESS_HOVER, TITLE,
 )
 from .ui_actions import UIActions
-from .user import User_class, Users
+from .user import User, Users
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -25,8 +25,8 @@ class ExpenseApp(ctk.CTk):
         set_database_file(data_file)
 
         self.title("Expenses Tracker Dashboard")
-        self.geometry("860x640")
-        self.minsize(780, 580)
+        self.geometry("900x680")
+        self.minsize(820, 620)
         self.configure(fg_color=APP_BG)
         self.resizable(True, True)
 
@@ -83,7 +83,7 @@ class ExpenseApp(ctk.CTk):
 
         ctk.CTkLabel(
             inner,
-            text="Manage budgets, track spending, and convert currencies — all in one place.",
+            text="Track spending, manage category budgets, and analyze finances.",
             font=("Segoe UI", 12),
             text_color=MUTED,
             wraplength=360,
@@ -137,7 +137,7 @@ class ExpenseApp(ctk.CTk):
         if hasattr(self, "startup_frame") and self.startup_frame.winfo_exists():
             self.startup_frame.destroy()
 
-        self.user = User_class(username)
+        self.user = User(username)
         self.tracker = ExpenseTracker(self.user)
         self.actions = UIActions(self.user, self.tracker, self.users, self)
 
@@ -166,37 +166,37 @@ class ExpenseApp(ctk.CTk):
             self._build_startup_ui()
 
     def _build_dashboard_ui(self):
-        """Construct the main expense management dashboard."""
+        """Construct the dashboard with live summary cards and action buttons."""
         header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(pady=(22, 10), fill="x", padx=36)
+        header.pack(pady=(16, 6), fill="x", padx=30)
 
         ctk.CTkLabel(
             header,
             text=f"Welcome, {self.user.name}!",
-            font=("Segoe UI", 24, "bold"),
+            font=("Segoe UI", 22, "bold"),
             text_color=TITLE,
         ).pack(side="left")
 
         self.network_lbl = ctk.CTkLabel(
             header, text="Checking network…", font=("Segoe UI", 11, "bold"), text_color=MUTED
         )
-        self.network_lbl.pack(side="left", padx=(16, 0))
+        self.network_lbl.pack(side="left", padx=(14, 0))
 
         currency_frame = ctk.CTkFrame(header, fg_color="transparent")
         currency_frame.pack(side="right")
 
         ctk.CTkLabel(
             currency_frame,
-            text="Account Currency:",
-            font=("Segoe UI", 12, "bold"),
+            text="Currency:",
+            font=("Segoe UI", 11, "bold"),
             text_color=BODY,
-        ).pack(side="left", padx=(0, 10))
+        ).pack(side="left", padx=(0, 8))
 
         self.currency_selector = ctk.CTkOptionMenu(
             currency_frame,
-            values=["USD", "EUR", "GBP", "JPY", "CAD"],
-            width=95,
-            height=32,
+            values=["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"],
+            width=90,
+            height=30,
             fg_color=PRIMARY,
             button_color=PRIMARY_HOVER,
             command=lambda val: self.actions.change_account_currency(val, self.currency_selector),
@@ -204,50 +204,85 @@ class ExpenseApp(ctk.CTk):
         self.currency_selector.pack(side="right")
         self.currency_selector.set(self.user.currency)
 
-        ctk.CTkLabel(
-            self,
-            text="Manage your expenses, set limits, and view visual breakdowns below.",
-            font=("Segoe UI", 12),
-            text_color=HIGHLIGHT,
-        ).pack(pady=(0, 16))
+        # 3 Live Summary Metric Cards
+        self.cards_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.cards_frame.pack(fill="x", padx=30, pady=(6, 12))
+        self.cards_frame.columnconfigure((0, 1, 2), weight=1)
 
+        # Card 1: Total Spent
+        c1 = ctk.CTkFrame(self.cards_frame, fg_color=CARD_BG, corner_radius=12, border_width=1, border_color=CARD_BORDER)
+        c1.grid(row=0, column=0, padx=6, sticky="nsew", ipady=8)
+        ctk.CTkLabel(c1, text="💳 Total Spending", font=("Segoe UI", 11, "bold"), text_color=MUTED).pack(pady=(6, 2))
+        self.spent_lbl = ctk.CTkLabel(c1, text="0.00", font=("Segoe UI", 18, "bold"), text_color=TITLE)
+        self.spent_lbl.pack(pady=(0, 6))
+
+        # Card 2: Remaining Budget
+        c2 = ctk.CTkFrame(self.cards_frame, fg_color=CARD_BG, corner_radius=12, border_width=1, border_color=CARD_BORDER)
+        c2.grid(row=0, column=1, padx=6, sticky="nsew", ipady=8)
+        ctk.CTkLabel(c2, text="🎯 Remaining Budget", font=("Segoe UI", 11, "bold"), text_color=MUTED).pack(pady=(6, 2))
+        self.rem_lbl = ctk.CTkLabel(c2, text="0.00", font=("Segoe UI", 18, "bold"), text_color=SUCCESS)
+        self.rem_lbl.pack(pady=(0, 6))
+
+        # Card 3: Top Category
+        c3 = ctk.CTkFrame(self.cards_frame, fg_color=CARD_BG, corner_radius=12, border_width=1, border_color=CARD_BORDER)
+        c3.grid(row=0, column=2, padx=6, sticky="nsew", ipady=8)
+        ctk.CTkLabel(c3, text="🏆 Top Spending Category", font=("Segoe UI", 11, "bold"), text_color=MUTED).pack(pady=(6, 2))
+        self.top_lbl = ctk.CTkLabel(c3, text="None", font=("Segoe UI", 18, "bold"), text_color=HIGHLIGHT)
+        self.top_lbl.pack(pady=(0, 6))
+
+        self.refresh_summary_cards()
+
+        # Action Grid
         grid = ctk.CTkFrame(self, fg_color="transparent")
-        grid.pack(fill="both", expand=True, padx=36, pady=8)
+        grid.pack(fill="both", expand=True, padx=30, pady=4)
         grid.columnconfigure(0, weight=1)
         grid.columnconfigure(1, weight=1)
 
         btn_style = {
             "width": 260,
-            "height": 44,
-            "font": ("Segoe UI", 13, "bold"),
+            "height": 40,
+            "font": ("Segoe UI", 12, "bold"),
             "corner_radius": 10,
             "fg_color": PRIMARY,
             "hover_color": PRIMARY_HOVER,
         }
 
         buttons_left = [
-            ("1. Set a Budget", self.actions.set_budget),
-            ("2. Add Expense", self.actions.add_expense),
-            ("3. Remove Expense", self.actions.remove_expense),
-            ("4. Reset Category", self.actions.reset_category),
+            ("➕ 1. Add Expense", self.actions.add_expense),
+            ("🎯 2. Set Category Budget", self.actions.set_budget),
+            ("📜 3. Transaction History", self.actions.show_transactions),
+            ("🔄 4. Reset Category", self.actions.reset_category),
         ]
         buttons_right = [
-            ("5. View Status Table", self.actions.show_status),
-            ("6. Visual Breakdown", self.actions.show_chart),
-            ("7. Switch Account", self.actions.switch_user_profile),
+            ("📊 5. Visual Analytics (3-in-1)", self.actions.show_chart),
+            ("📋 6. Financial Status Table", self.actions.show_status),
+            ("🏷️ 7. Add Custom Category", self.actions.add_custom_category),
+            ("📥 8. Export to CSV", self.actions.export_to_csv),
         ]
 
         for idx, (label, command) in enumerate(buttons_left):
             ctk.CTkButton(grid, text=label, command=command, **btn_style).grid(
-                row=idx, column=0, padx=14, pady=8, sticky="ew"
+                row=idx, column=0, padx=10, pady=6, sticky="ew"
             )
         for idx, (label, command) in enumerate(buttons_right):
             ctk.CTkButton(grid, text=label, command=command, **btn_style).grid(
-                row=idx, column=1, padx=14, pady=8, sticky="ew"
+                row=idx, column=1, padx=10, pady=6, sticky="ew"
             )
 
+        # Bottom navigation
         bottom = ctk.CTkFrame(self, fg_color="transparent")
-        bottom.pack(fill="x", padx=36, pady=(16, 26))
+        bottom.pack(fill="x", padx=30, pady=(12, 20))
+
+        ctk.CTkButton(
+            bottom,
+            text="Switch Account",
+            command=self.actions.switch_user_profile,
+            fg_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
+            font=("Segoe UI", 12, "bold"),
+            height=38,
+            corner_radius=10,
+        ).pack(side="left", fill="x", expand=True, padx=(0, 6))
 
         ctk.CTkButton(
             bottom,
@@ -256,9 +291,9 @@ class ExpenseApp(ctk.CTk):
             fg_color=DANGER,
             hover_color=DANGER_HOVER,
             font=("Segoe UI", 12, "bold"),
-            height=42,
+            height=38,
             corner_radius=10,
-        ).pack(side="left", fill="x", expand=True, padx=(0, 10))
+        ).pack(side="left", fill="x", expand=True, padx=(6, 6))
 
         ctk.CTkButton(
             bottom,
@@ -267,9 +302,32 @@ class ExpenseApp(ctk.CTk):
             fg_color=NEUTRAL,
             hover_color=NEUTRAL_HOVER,
             font=("Segoe UI", 12, "bold"),
-            height=42,
+            height=38,
             corner_radius=10,
-        ).pack(side="right", fill="x", expand=True, padx=(10, 0))
+        ).pack(side="right", fill="x", expand=True, padx=(6, 0))
+
+    def refresh_summary_cards(self):
+        """Update live values and colors on the top metric summary cards."""
+        if not self.user or not hasattr(self, "spent_lbl"):
+            return
+
+        total_spent = self.user.total_expenses_of_user()
+        rem_budget = self.user.get_remaining_budget()
+        top_cat, top_amt = self.user.get_top_category()
+
+        self.spent_lbl.configure(text=f"{total_spent:.2f} {self.user.currency}")
+
+        if sum(self.user.budget_limits.values()) == 0:
+            self.rem_lbl.configure(text="No limits set", text_color=MUTED)
+        elif rem_budget >= 0:
+            self.rem_lbl.configure(text=f"+{rem_budget:.2f} {self.user.currency}", text_color=SUCCESS)
+        else:
+            self.rem_lbl.configure(text=f"{rem_budget:.2f} {self.user.currency}", text_color=DANGER)
+
+        if top_cat != "None":
+            self.top_lbl.configure(text=f"{top_cat} ({top_amt:.2f})")
+        else:
+            self.top_lbl.configure(text="None")
 
     def _start_network_monitoring(self):
         """Refresh exchange rates and update connectivity status periodically."""

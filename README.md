@@ -1,49 +1,46 @@
 # 💰 Multi-Currency Expense Tracker
 
-A modern desktop application for **personal expense tracking, category-based budgeting, multi-currency conversion, and financial data visualization**.
+A modern desktop application for **personal expense tracking, category-based budgeting, multi-currency conversion, transaction ledgers, and financial visual analytics**.
 
-Built with **Python, CustomTkinter, Matplotlib, and JSON**, the application follows a clean layered architecture with separated GUI, business logic, persistence, security, and external-service responsibilities.
+Built with **Python, CustomTkinter, Matplotlib, and JSON**, the application follows a layered architecture with clean separation between the GUI, business layer, persistence, security, and external currency exchange services.
 
 ---
 
 ## ✨ Core Features
 
-### 🎨 Modern Desktop GUI
-* Built with **CustomTkinter**
-* Centralized theme and color management
-* Adaptive light/dark appearance
-* Reusable modal dialogs
-* Clean separation between interface and application logic
+### 🎨 Modern Desktop Dashboard
+* Built with **CustomTkinter** with light and dark mode adaptation.
+* **Live Metric Cards**: Real-time summary of Total Spending, Remaining Budget, and Top Spending Category directly on the main window.
+* Reusable modal dialogs with smooth validation and error reporting.
 
-### 💱 Multi-Currency Support
-* Supports **USD, EUR, GBP, JPY, CAD, and more**
-* Live exchange rates fetched in background threads from `exchangerate-api.com`
-* Automatic local disk caching for offline resilience
-* Static fallback rates ensure the app remains functional without internet connectivity
+### 📜 Transaction Ledger with Notes & Dates
+* Record individual transactions with **Category, Amount, Date (`YYYY-MM-DD`), and Note/Description**.
+* **Interactive Transaction History**: Scrollable ledger with real-time search and category filtering.
+* **Transaction Deletion**: Delete individual entries directly from the history ledger.
 
-### 📊 Budget Management
-* Set spending limits for individual categories
-* Track spending against category budgets
-* Detect and warn when transactions exceed budgets
-* Reset category data (budgets and spending) on demand
-* Multi-layer validation at both GUI and business-logic levels
+### 📊 3-Way Interactive Visual Analytics
+* Embedded **Matplotlib** analytics window with an interactive segmented toggle:
+  * 🍩 **Spending Distribution (Pie Chart)**: Percentage and amount distribution of actual spending.
+  * 🎯 **Budget Allocation (Pie Chart)**: Percentage and amount distribution of planned budgets.
+  * 📊 **Budget vs. Actual (Bar Chart)**: Side-by-side comparison bars showing planned limits vs. actual spending (color-coded green for within budget, red for exceeding).
 
-### 📈 Data Visualization
-* Generates expense breakdowns using **Matplotlib**
-* Displays category spending through embedded charts
-* Uses Matplotlib's object-oriented API with automatic figure disposal
+### 🏷️ Custom Category Management
+* Preloaded with canonical categories (`food`, `transport`, `housing`, `entertainment`, `shopping`, `health`, `education`, `miscellaneous`).
+* Add unlimited custom categories tailored to your personal finances.
 
-### 👥 Multi-User Profiles
-* Independent financial profiles for each user
-* Separate expenses, budgets, and preferred currencies
-* Username normalization for consistent lookups
-* Password-protected accounts with PBKDF2-HMAC-SHA256 hashing
-* Brute-force protection with temporary lockouts
+### 📥 CSV Spreadsheet Export
+* Export full transaction records (ID, Date, Category, Amount, Currency, Note) to a `.csv` file with a single click.
 
-### 🔒 Safe Local Persistence
-* Data stored in JSON with atomic temporary-file replacement
-* Automatic backup creation on corrupted database detection
-* No plain-text passwords or exposed sensitive tokens
+### 💱 Multi-Currency Support & Live Exchange Rates
+* Supports **USD, EUR, GBP, JPY, CAD, AUD, CHF, CNY, INR, and more**.
+* Non-blocking background rate fetching from `exchangerate-api.com`.
+* Persistent local cache and static fallbacks keep the application fully operational offline.
+
+### 🔒 Secure Authentication & Local Persistence
+* Accounts protected with **PBKDF2-HMAC-SHA256** password hashing and unique cryptographic salts.
+* Constant-time hash verification (`hmac.compare_digest`) to prevent timing attacks.
+* Automatic 30-second lockout after 3 consecutive failed login attempts.
+* Atomic temporary-file replacement for JSON persistence with automatic `.corrupt.bak` recovery.
 
 ---
 
@@ -52,7 +49,7 @@ Built with **Python, CustomTkinter, Matplotlib, and JSON**, the application foll
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/Mounir-code09/User-Expense.git
+git clone git@github.com:Mounir-code09/User-Expense.git
 cd User-Expense
 ```
 
@@ -62,48 +59,37 @@ cd User-Expense
 pip install customtkinter CTkMessagebox matplotlib requests pytest pytest-cov
 ```
 
-### 3. Run the Application
+### 3. Launch the Application
 
 ```bash
-python mainEXE.py
-```
-
-Or run programmatically:
-
-```python
-from core.gui_app import start_app
-
-start_app("Database.json")
+python main.py
 ```
 
 ---
 
 ## 🏛️ Architecture
 
-The project follows a **layered separation-of-concerns architecture**:
-
 ```text
-┌─────────────────────────────┐
-│          GUI Layer          │
-│ gui_app.py / ui_actions.py  │
-│ modals.py / chart_viewer.py │
-└──────────────┬──────────────┘
-               │
-               ▼
-┌─────────────────────────────┐
-│       Business Layer        │
-│ user.py / expense_tracker.py│
-│         security.py         │
-└──────────────┬──────────────┘
-               │
-               ▼
-┌─────────────────────────────┐
-│      Persistence Layer      │
-│       data_manager.py       │
-└──────────────┬──────────────┘
-               │
-               ▼
-          Database.json
+┌──────────────────────────────────────────────┐
+│                  GUI Layer                   │
+│   gui_app.py / ui_actions.py / modals.py     │
+│               chart_viewer.py                │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│                Business Layer                │
+│    user.py / expense_tracker.py / security.py│
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│              Persistence Layer               │
+│               data_manager.py                │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+                 Database.json
 ```
 
 ---
@@ -113,74 +99,48 @@ The project follows a **layered separation-of-concerns architecture**:
 ```text
 User_Expenses/
 │
-├── mainEXE.py
-├── Database.json
+├── main.py                     # Canonical application entry point
+├── mainEXE.py                  # Launcher alias
+├── Database.json               # Local JSON database
 ├── README.md
 ├── .gitignore
 │
 ├── .github/
 │   └── workflows/
-│       └── ci.yml
+│       └── ci.yml              # GitHub Actions CI workflow
 │
 ├── core/
 │   ├── __init__.py
-│   ├── gui_app.py
-│   ├── ui_actions.py
-│   ├── modals.py
-│   ├── user.py
-│   ├── expense_tracker.py
-│   ├── data_manager.py
-│   ├── security.py
-│   ├── currency_service.py
-│   ├── chart_viewer.py
-│   └── theme.py
+│   ├── gui_app.py              # Main window, metric cards, dashboard layout
+│   ├── ui_actions.py           # Dashboard actions and event handlers
+│   ├── modals.py               # Sign In, Sign Up, Expense entry, Ledger modals
+│   ├── user.py                 # User profile, transactions, custom categories, CSV
+│   ├── expense_tracker.py      # Business logic and status table reports
+│   ├── data_manager.py         # JSON storage, atomic saves, corrupt recovery
+│   ├── security.py             # PBKDF2 hashing, timing-safe checks, lockouts
+│   ├── currency_service.py     # Threaded live rate updates, offline fallbacks
+│   ├── chart_viewer.py         # 3-in-1 interactive visual analytics
+│   └── theme.py                # Centralized color palettes
 │
 └── Tests/
-    ├── test_DataManager.py
-    ├── test_User.py
-    ├── test_ExpenseTracker.py
-    ├── test_currency_service.py
-    └── test_security.py
+    ├── test_data_manager.py    # Database & migration tests
+    ├── test_user.py            # User, transaction, and CSV tests
+    ├── test_expense_tracker.py # Expense calculations & status reports
+    ├── test_currency_service.py# Live rates, caching, and conversion math
+    └── test_security.py        # Hashing, strength rules, and lockouts
 ```
-
----
-
-## 🧩 Module Responsibilities
-
-| Module | Primary Responsibility |
-| :--- | :--- |
-| `mainEXE.py` | Application entry point that boots `ExpenseApp`. |
-| `core/gui_app.py` | Root window lifecycle, startup screens, session switching, and dashboard UI. |
-| `core/ui_actions.py` | Maps dashboard buttons to business logic with input dialogs and validations. |
-| `core/modals.py` | Reusable centered modal dialogs for sign-in, registration, and user inputs. |
-| `core/user.py` | User financial profile representation, currency changes, and category resets. |
-| `core/expense_tracker.py` | Business logic for adding/removing expenses and formatting financial reports. |
-| `core/data_manager.py` | Persistence helpers, atomic JSON replacement, category validation, and corrupt DB backups. |
-| `core/security.py` | PBKDF2 password hashing, constant-time verification, password rules, and lockout tracking. |
-| `core/currency_service.py` | Threaded live rate fetching, persistent disk cache, and multi-currency conversions. |
-| `core/chart_viewer.py` | Matplotlib pie chart visualization with appearance theme integration. |
-| `core/theme.py` | Palette constants for light and dark modes. |
-
----
-
-## 🔐 Security & Lockout Policy
-
-* **Hashing Algorithm**: PBKDF2-HMAC-SHA256 with 100,000 iterations and a unique 16-byte cryptographic salt per user.
-* **Timing Protection**: Password verification uses constant-time comparison (`hmac.compare_digest`).
-* **Password Policy**: Minimum 8 characters with at least one uppercase letter, one lowercase letter, and one digit.
-* **Brute-Force Lockout**: 3 consecutive failed login attempts trigger a 30-second lockout period for the account.
 
 ---
 
 ## 🧪 Testing
 
-Run the automated test suite with pytest:
+Run all unit tests with pytest:
 
 ```bash
 python -m pytest Tests/ -v
 ```
 
-To run with coverage:
+Run test suite with coverage report:
 
 ```bash
 python -m pytest Tests/ -v --cov=core --cov-report=term-missing
@@ -188,7 +148,9 @@ python -m pytest Tests/ -v --cov=core --cov-report=term-missing
 
 ---
 
-## 🏷️ Supported Categories & Currencies
+## 🔐 Security & Lockout Policy
 
-* **Categories**: `food`, `transport`, `housing`, `entertainment`, `shopping`, `health`, `education`, `miscellaneous`.
-* **Currencies**: `USD`, `EUR`, `GBP`, `JPY`, `CAD`, `AUD`, `CHF`, `CNY`, `INR`.
+* **Hashing Algorithm**: PBKDF2-HMAC-SHA256 with 100,000 iterations and a 16-byte random salt.
+* **Verification**: Constant-time comparison (`hmac.compare_digest`).
+* **Password Complexity**: Minimum 8 characters, requiring at least one uppercase letter, one lowercase letter, and one digit.
+* **Brute-Force Lockout**: 3 failed login attempts lock the account for 30 seconds.

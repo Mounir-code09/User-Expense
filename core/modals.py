@@ -1,19 +1,20 @@
-"""CustomTkinter modal dialogs for authentication and inputs."""
+"""CustomTkinter modal dialogs for authentication, inputs, transactions, and filters."""
+from datetime import datetime
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 
 from .security import SecurityManager
 from .data_manager import normalize_username
 from .theme import (
-    APP_BG, CARD_BG, CARD_BORDER, TITLE, BODY,
-    PRIMARY, PRIMARY_HOVER, SUCCESS, SUCCESS_HOVER,
+    APP_BG, CARD_BG, CARD_BORDER, TITLE, BODY, MUTED,
+    PRIMARY, PRIMARY_HOVER, SUCCESS, SUCCESS_HOVER, DANGER, DANGER_HOVER,
 )
 
 
 class BaseModal(ctk.CTkToplevel):
     """Base modal dialog window with centering."""
 
-    def __init__(self, master, title, width=400, height=320):
+    def __init__(self, master, title, width=420, height=340):
         super().__init__(master)
         self.master = master
         self.title(title)
@@ -21,7 +22,6 @@ class BaseModal(ctk.CTkToplevel):
         self.configure(fg_color=APP_BG)
         self.resizable(False, False)
 
-        # Center relative to master
         self.update_idletasks()
         if master:
             x = master.winfo_x() + (master.winfo_width() // 2) - (width // 2)
@@ -48,13 +48,7 @@ class SignInModal(BaseModal):
         self._build_ui()
 
     def _build_ui(self):
-        card = ctk.CTkFrame(
-            self,
-            corner_radius=16,
-            fg_color=CARD_BG,
-            border_width=2,
-            border_color=CARD_BORDER,
-        )
+        card = ctk.CTkFrame(self, corner_radius=16, fg_color=CARD_BG, border_width=2, border_color=CARD_BORDER)
         card.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.9, relheight=0.9)
 
         accent = ctk.CTkFrame(card, height=6, corner_radius=0, fg_color=PRIMARY)
@@ -63,9 +57,7 @@ class SignInModal(BaseModal):
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="both", expand=True, padx=24, pady=20)
 
-        ctk.CTkLabel(
-            inner, text="Welcome Back", font=("Segoe UI", 20, "bold"), text_color=TITLE
-        ).pack(pady=(0, 15))
+        ctk.CTkLabel(inner, text="Welcome Back", font=("Segoe UI", 20, "bold"), text_color=TITLE).pack(pady=(0, 15))
 
         ctk.CTkLabel(inner, text="Username:", font=("Segoe UI", 12, "bold"), text_color=BODY).pack(anchor="w")
         self.user_entry = ctk.CTkEntry(inner, width=320, height=38, font=("Segoe UI", 12))
@@ -77,14 +69,8 @@ class SignInModal(BaseModal):
         self.pass_entry.bind("<Return>", lambda e: self._submit())
 
         ctk.CTkButton(
-            inner,
-            text="Sign In",
-            width=320,
-            height=40,
-            font=("Segoe UI", 13, "bold"),
-            fg_color=PRIMARY,
-            hover_color=PRIMARY_HOVER,
-            command=self._submit,
+            inner, text="Sign In", width=320, height=40, font=("Segoe UI", 13, "bold"),
+            fg_color=PRIMARY, hover_color=PRIMARY_HOVER, command=self._submit,
         ).pack()
 
     def _submit(self):
@@ -102,8 +88,7 @@ class SignInModal(BaseModal):
                 CTkMessagebox(
                     title="Account Locked",
                     message=f"Too many failed attempts. Account is locked for {remaining} more seconds.",
-                    icon="warning",
-                    master=self.master,
+                    icon="warning", master=self.master,
                 )
             else:
                 CTkMessagebox(title="Access Denied", message="Invalid username or password.", icon="cancel", master=self.master)
@@ -113,7 +98,6 @@ class SignInModal(BaseModal):
         self.destroy()
 
     def get_username(self):
-        """Wait for window to close and return logged in username."""
         self.wait_window(self)
         return self._username_result
 
@@ -128,13 +112,7 @@ class SignUpModal(BaseModal):
         self._build_ui()
 
     def _build_ui(self):
-        card = ctk.CTkFrame(
-            self,
-            corner_radius=16,
-            fg_color=CARD_BG,
-            border_width=2,
-            border_color=CARD_BORDER,
-        )
+        card = ctk.CTkFrame(self, corner_radius=16, fg_color=CARD_BG, border_width=2, border_color=CARD_BORDER)
         card.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.9, relheight=0.9)
 
         accent = ctk.CTkFrame(card, height=6, corner_radius=0, fg_color=SUCCESS)
@@ -143,9 +121,7 @@ class SignUpModal(BaseModal):
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="both", expand=True, padx=24, pady=20)
 
-        ctk.CTkLabel(
-            inner, text="New Account", font=("Segoe UI", 20, "bold"), text_color=TITLE
-        ).pack(pady=(0, 10))
+        ctk.CTkLabel(inner, text="New Account", font=("Segoe UI", 20, "bold"), text_color=TITLE).pack(pady=(0, 10))
 
         ctk.CTkLabel(inner, text="Username:", font=("Segoe UI", 12, "bold"), text_color=BODY).pack(anchor="w")
         self.user_entry = ctk.CTkEntry(inner, width=320, height=36, font=("Segoe UI", 12))
@@ -161,14 +137,8 @@ class SignUpModal(BaseModal):
         self.confirm_pass_entry.bind("<Return>", lambda e: self._submit())
 
         ctk.CTkButton(
-            inner,
-            text="Register & Sign In",
-            width=320,
-            height=40,
-            font=("Segoe UI", 13, "bold"),
-            fg_color=SUCCESS,
-            hover_color=SUCCESS_HOVER,
-            command=self._submit,
+            inner, text="Register & Sign In", width=320, height=40, font=("Segoe UI", 13, "bold"),
+            fg_color=SUCCESS, hover_color=SUCCESS_HOVER, command=self._submit,
         ).pack()
 
     def _submit(self):
@@ -191,13 +161,12 @@ class SignUpModal(BaseModal):
         self.destroy()
 
     def get_username(self):
-        """Wait for window to close and return registered username."""
         self.wait_window(self)
         return self._username_result
 
 
 class SwitchAccountModal(BaseModal):
-    """Modal for switching accounts with password check."""
+    """Modal for switching accounts with password verification."""
 
     def __init__(self, users_container, current_user=None, master=None):
         super().__init__(master, title="Switch Account", width=380, height=340)
@@ -228,13 +197,8 @@ class SwitchAccountModal(BaseModal):
         self.pass_entry.bind("<Return>", lambda e: self._submit())
 
         ctk.CTkButton(
-            inner,
-            text="Switch Account",
-            width=320,
-            height=38,
-            fg_color=PRIMARY,
-            hover_color=PRIMARY_HOVER,
-            command=self._submit,
+            inner, text="Switch Account", width=320, height=38,
+            fg_color=PRIMARY, hover_color=PRIMARY_HOVER, command=self._submit,
         ).pack()
 
     def _submit(self):
@@ -260,8 +224,7 @@ class SwitchAccountModal(BaseModal):
                 CTkMessagebox(
                     title="Account Locked",
                     message=f"Too many failed attempts. Account is locked for {remaining} more seconds.",
-                    icon="warning",
-                    master=self.master,
+                    icon="warning", master=self.master,
                 )
             else:
                 CTkMessagebox(title="Access Denied", message="Invalid password for this account.", icon="cancel", master=self.master)
@@ -271,13 +234,12 @@ class SwitchAccountModal(BaseModal):
         self.destroy()
 
     def get_username(self):
-        """Wait for window to close and return switched username."""
         self.wait_window(self)
         return self._username_result
 
 
 class CTkInputModal(BaseModal):
-    """Prompt modal for text input."""
+    """Prompt modal for single text input."""
 
     def __init__(self, title, text, show=None, master=None):
         super().__init__(master, title=title, width=380, height=220)
@@ -298,13 +260,8 @@ class CTkInputModal(BaseModal):
         self.entry.bind("<Return>", lambda e: self._submit())
 
         ctk.CTkButton(
-            inner,
-            text="Confirm",
-            width=320,
-            height=36,
-            fg_color=PRIMARY,
-            hover_color=PRIMARY_HOVER,
-            command=self._submit,
+            inner, text="Confirm", width=320, height=36,
+            fg_color=PRIMARY, hover_color=PRIMARY_HOVER, command=self._submit,
         ).pack()
 
     def _submit(self):
@@ -312,13 +269,12 @@ class CTkInputModal(BaseModal):
         self.destroy()
 
     def get_input(self):
-        """Wait for window to close and return entered string."""
         self.wait_window(self)
         return self._input_result
 
 
 class CTkDropdownDialog(BaseModal):
-    """Dropdown selection modal."""
+    """Dropdown selector dialog."""
 
     def __init__(self, title, text, values, master=None):
         super().__init__(master, title=title, width=380, height=220)
@@ -339,13 +295,8 @@ class CTkDropdownDialog(BaseModal):
             self.dropdown.set(self.values[0])
 
         ctk.CTkButton(
-            inner,
-            text="Select",
-            width=320,
-            height=36,
-            fg_color=PRIMARY,
-            hover_color=PRIMARY_HOVER,
-            command=self._submit,
+            inner, text="Select", width=320, height=36,
+            fg_color=PRIMARY, hover_color=PRIMARY_HOVER, command=self._submit,
         ).pack()
 
     def _submit(self):
@@ -353,6 +304,183 @@ class CTkDropdownDialog(BaseModal):
         self.destroy()
 
     def get_input(self):
-        """Wait for window to close and return selected option."""
         self.wait_window(self)
         return self._selection_result
+
+
+class AddExpenseModal(BaseModal):
+    """Comprehensive dialog for logging an expense with category, amount, date, and note."""
+
+    def __init__(self, categories, currency="USD", master=None):
+        super().__init__(master, title="Record Expense", width=420, height=440)
+        self.categories = [c.capitalize() for c in categories]
+        self.currency = currency
+        self._expense_data = None
+        self._build_ui()
+
+    def _build_ui(self):
+        inner = ctk.CTkFrame(self, fg_color="transparent")
+        inner.pack(fill="both", expand=True, padx=24, pady=20)
+
+        ctk.CTkLabel(inner, text="Category:", font=("Segoe UI", 11, "bold"), text_color=BODY).pack(anchor="w")
+        self.cat_menu = ctk.CTkOptionMenu(inner, values=self.categories, width=370, height=34)
+        self.cat_menu.pack(pady=(2, 10))
+        if self.categories:
+            self.cat_menu.set(self.categories[0])
+
+        ctk.CTkLabel(inner, text=f"Amount ({self.currency}):", font=("Segoe UI", 11, "bold"), text_color=BODY).pack(anchor="w")
+        self.amount_entry = ctk.CTkEntry(inner, width=370, height=34, font=("Segoe UI", 12), placeholder_text="e.g. 24.50")
+        self.amount_entry.pack(pady=(2, 10))
+
+        ctk.CTkLabel(inner, text="Note / Description (Optional):", font=("Segoe UI", 11, "bold"), text_color=BODY).pack(anchor="w")
+        self.note_entry = ctk.CTkEntry(inner, width=370, height=34, font=("Segoe UI", 12), placeholder_text="e.g. Groceries at Trader Joe's")
+        self.note_entry.pack(pady=(2, 10))
+
+        ctk.CTkLabel(inner, text="Date (YYYY-MM-DD):", font=("Segoe UI", 11, "bold"), text_color=BODY).pack(anchor="w")
+        self.date_entry = ctk.CTkEntry(inner, width=370, height=34, font=("Segoe UI", 12))
+        self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.date_entry.pack(pady=(2, 18))
+
+        ctk.CTkButton(
+            inner, text="Save Expense", width=370, height=38, font=("Segoe UI", 13, "bold"),
+            fg_color=PRIMARY, hover_color=PRIMARY_HOVER, command=self._submit,
+        ).pack()
+
+    def _submit(self):
+        category = self.cat_menu.get().lower().strip()
+        raw_amount = self.amount_entry.get().strip()
+        note = self.note_entry.get().strip()
+        date_str = self.date_entry.get().strip()
+
+        if not raw_amount:
+            CTkMessagebox(title="Input Error", message="Please enter an amount.", icon="cancel", master=self.master)
+            return
+
+        try:
+            amount = float(raw_amount)
+            if amount <= 0:
+                CTkMessagebox(title="Invalid Amount", message="Amount must be greater than zero.", icon="cancel", master=self.master)
+                return
+        except ValueError:
+            CTkMessagebox(title="Invalid Amount", message="Please enter a valid number for amount.", icon="cancel", master=self.master)
+            return
+
+        self._expense_data = {
+            "category": category,
+            "amount": amount,
+            "note": note,
+            "date": date_str,
+        }
+        self.destroy()
+
+    def get_expense_data(self):
+        self.wait_window(self)
+        return self._expense_data
+
+
+class TransactionHistoryModal(ctk.CTkToplevel):
+    """Scrollable transaction ledger dialog with search and deletion capabilities."""
+
+    def __init__(self, user, master=None):
+        super().__init__(master)
+        self.user = user
+        self.master = master
+        self.title("Transaction History Ledger")
+        self.geometry("740x540")
+        self.minsize(640, 440)
+        self.configure(fg_color=APP_BG)
+        self.transient(master)
+        self.focus_set()
+
+        self._build_ui()
+
+    def _build_ui(self):
+        top_frame = ctk.CTkFrame(self, fg_color="transparent")
+        top_frame.pack(fill="x", padx=20, pady=(15, 10))
+
+        ctk.CTkLabel(top_frame, text="📜 Transaction History", font=("Segoe UI", 18, "bold"), text_color=TITLE).pack(side="left")
+
+        # Category filter dropdown
+        filter_cats = ["All Categories"] + [c.capitalize() for c in self.user.categories]
+        self.filter_menu = ctk.CTkOptionMenu(
+            top_frame, values=filter_cats, width=150, height=32,
+            command=lambda val: self._refresh_list(),
+        )
+        self.filter_menu.pack(side="right", padx=(10, 0))
+
+        # Search bar
+        self.search_entry = ctk.CTkEntry(top_frame, width=180, height=32, placeholder_text="Search notes…")
+        self.search_entry.pack(side="right")
+        self.search_entry.bind("<KeyRelease>", lambda e: self._refresh_list())
+
+        # Table header
+        header = ctk.CTkFrame(self, height=36, fg_color=PRIMARY)
+        header.pack(fill="x", padx=20, pady=(5, 0))
+        header.pack_propagate(False)
+
+        ctk.CTkLabel(header, text="Date", font=("Segoe UI", 11, "bold"), text_color="#ffffff", width=90).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Category", font=("Segoe UI", 11, "bold"), text_color="#ffffff", width=110).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Amount", font=("Segoe UI", 11, "bold"), text_color="#ffffff", width=90).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Note / Description", font=("Segoe UI", 11, "bold"), text_color="#ffffff").pack(side="left", fill="x", expand=True, padx=5)
+        ctk.CTkLabel(header, text="Action", font=("Segoe UI", 11, "bold"), text_color="#ffffff", width=70).pack(side="right", padx=10)
+
+        # Scrollable ledger
+        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color=CARD_BG)
+        self.scroll_frame.pack(fill="both", expand=True, padx=20, pady=(0, 15))
+
+        self._refresh_list()
+
+    def _refresh_list(self):
+        for widget in self.scroll_frame.winfo_children():
+            widget.destroy()
+
+        selected_cat = self.filter_menu.get()
+        search_query = self.search_entry.get().lower().strip()
+
+        transactions = self.user.get_transactions()
+        if selected_cat != "All Categories":
+            transactions = [tx for tx in transactions if tx.get("category", "").lower() == selected_cat.lower()]
+        if search_query:
+            transactions = [tx for tx in transactions if search_query in tx.get("note", "").lower() or search_query in tx.get("category", "").lower()]
+
+        if not transactions:
+            ctk.CTkLabel(
+                self.scroll_frame, text="No transactions found matching criteria.",
+                font=("Segoe UI", 12), text_color=MUTED,
+            ).pack(pady=40)
+            return
+
+        for idx, tx in enumerate(transactions):
+            row_bg = CARD_BG if idx % 2 == 0 else ("#f8fafc", "#23163e")
+            row = ctk.CTkFrame(self.scroll_frame, fg_color=row_bg, height=38)
+            row.pack(fill="x", pady=2)
+            row.pack_propagate(False)
+
+            tx_id = tx.get("id")
+            date_str = tx.get("date", "")
+            cat_str = tx.get("category", "").capitalize()
+            amount_val = tx.get("amount", 0.0)
+            amount_str = f"{amount_val:.2f} {self.user.currency}"
+            note_str = tx.get("note", "")
+
+            ctk.CTkLabel(row, text=date_str, font=("Segoe UI", 11), width=90, text_color=BODY).pack(side="left", padx=5)
+            ctk.CTkLabel(row, text=cat_str, font=("Segoe UI", 11, "bold"), width=110, text_color=PRIMARY).pack(side="left", padx=5)
+            ctk.CTkLabel(row, text=amount_str, font=("Segoe UI", 11, "bold"), width=90, text_color=BODY).pack(side="left", padx=5)
+            ctk.CTkLabel(row, text=note_str, font=("Segoe UI", 11), text_color=MUTED, anchor="w").pack(side="left", fill="x", expand=True, padx=5)
+
+            del_btn = ctk.CTkButton(
+                row, text="Delete", width=60, height=24, font=("Segoe UI", 10, "bold"),
+                fg_color=DANGER, hover_color=DANGER_HOVER,
+                command=lambda tid=tx_id: self._delete_tx(tid),
+            )
+            del_btn.pack(side="right", padx=5)
+
+    def _delete_tx(self, tx_id):
+        msg = CTkMessagebox(
+            title="Confirm Delete",
+            message="Permanently remove this transaction entry?",
+            icon="warning", option_1="Yes", option_2="No", master=self,
+        )
+        if msg.get() == "Yes":
+            self.user.delete_transaction(tx_id)
+            self._refresh_list()
