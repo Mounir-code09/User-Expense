@@ -1,4 +1,3 @@
-"""Expense tracking calculations, status reporting, and adjustment tests."""
 import pytest
 from core.user import User
 from core.expense_tracker import ExpenseTracker
@@ -8,7 +7,7 @@ from core.exceptions import InvalidAmountError, InvalidCategoryError
 
 @pytest.fixture
 def test_tracker(monkeypatch):
-    db_store = {
+    db = {
         "users": {
             "Bob": {
                 "currency": "USD",
@@ -27,36 +26,46 @@ def test_tracker(monkeypatch):
             }
         }
     }
-    monkeypatch.setattr("core.data_manager.load_database", lambda: db_store)
-    monkeypatch.setattr("core.data_manager.save_database", lambda data: db_store.update(data))
-    user = User("Bob")
-    return ExpenseTracker(user)
+    monkeypatch.setattr("core.data_manager.load_database", lambda: db)
+    monkeypatch.setattr("core.data_manager.save_database", lambda data: db.update(data))
+    return ExpenseTracker(User("Bob"))
 
 
-def test_add_expense_accumulates_total(test_tracker):
-    tracker = test_tracker
-    tracker.add_expense("food", 20.50, note="Snacks")
-    assert tracker.expenseReport["food"] == 50.50
-    assert tracker.total_expenses_of_user() == 115.50
+def test_add_expense_accumulates(test_tracker):
+    test_tracker.add_expense("food", 20.50, note="Snacks")
+    assert test_tracker.expense_report["food"] == 50.50
+    assert test_tracker.total_expenses_of_user() == 115.50
 
 
-def test_remove_expense_subtracts_from_total(test_tracker):
-    tracker = test_tracker
-    tracker.remove_expense("food", 10.0)
-    assert tracker.expenseReport["food"] == 20.0
+def test_backward_compat_expenseReport(test_tracker):
+    assert test_tracker.expenseReport["food"] == 30.0
 
 
-def test_remove_expense_rejects_exceeding_or_negative(test_tracker):
-    tracker = test_tracker
+def test_remove_expense_subtracts(test_tracker):
+    test_tracker.remove_expense("food", 10.0)
+    assert test_tracker.expense_report["food"] == 20.0
+
+
+def test_remove_expense_float_precision(test_tracker):
+    # Add exactly the same amount we'll remove (float representation edge case)
+    test_tracker.user.transactions.append(
+        {"id": "tx_edge", "date": "2026-08-03", "category": "food", "amount": 0.1, "note": ""}
+    )
+    current = test_tracker.expense_report["food"]
+    # Should not raise — rounded comparison must accept exact amounts
+    test_tracker.remove_expense("food", current)
+
+
+def test_remove_expense_rejects_invalid(test_tracker):
     with pytest.raises(InvalidAmountError, match="greater than zero"):
-        tracker.remove_expense("food", 0)
+        test_tracker.remove_expense("food", 0)
     with pytest.raises(InvalidAmountError, match="greater than zero"):
-        tracker.remove_expense("food", -5)
+        test_tracker.remove_expense("food", -5)
     with pytest.raises(InvalidAmountError, match="only"):
-        tracker.remove_expense("food", 50.0)
+        test_tracker.remove_expense("food", 50.0)
 
 
-def test_status_report_formatting(test_tracker):
+def test_status_report_contains_expected_fields(test_tracker):
     report = test_tracker.get_status_report()
     assert "Food" in report
     assert "✅ OK" in report
@@ -68,10 +77,9 @@ def test_status_report_formatting(test_tracker):
 
 
 def test_add_expense_rejects_invalid_inputs(test_tracker):
-    tracker = test_tracker
     with pytest.raises(InvalidAmountError, match="greater than zero"):
-        tracker.add_expense("food", 0)
+        test_tracker.add_expense("food", 0)
     with pytest.raises(InvalidAmountError, match="greater than zero"):
-        tracker.add_expense("food", -10)
+        test_tracker.add_expense("food", -10)
     with pytest.raises(InvalidCategoryError, match="not a recognized category"):
-        tracker.add_expense("unregistered_category", 50.0)
+        test_tracker.add_expense("unregistered_category", 50.0)

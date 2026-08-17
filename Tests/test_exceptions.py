@@ -1,5 +1,3 @@
-"""Domain exception hierarchy tests."""
-import pytest
 from core.exceptions import (
     AccountLockedError,
     AuthenticationError,
@@ -7,24 +5,23 @@ from core.exceptions import (
     ExpenseTrackerError,
     InvalidAmountError,
     InvalidCategoryError,
+    InvalidDateError,
     PasswordValidationError,
 )
 
 
-def test_exception_inheritance():
-    """Verify all domain exceptions inherit from ExpenseTrackerError."""
-    assert issubclass(InvalidCategoryError, ExpenseTrackerError)
-    assert issubclass(CategoryAlreadyExistsError, ExpenseTrackerError)
-    assert issubclass(InvalidAmountError, ExpenseTrackerError)
-    assert issubclass(AccountLockedError, ExpenseTrackerError)
-    assert issubclass(AuthenticationError, ExpenseTrackerError)
-    assert issubclass(PasswordValidationError, ExpenseTrackerError)
+def test_all_inherit_from_base():
+    for exc_class in (
+        InvalidCategoryError, CategoryAlreadyExistsError, InvalidAmountError,
+        InvalidDateError, AccountLockedError, AuthenticationError, PasswordValidationError,
+    ):
+        assert issubclass(exc_class, ExpenseTrackerError)
 
 
 def test_exception_messages():
-    """Verify exceptions format custom error messages cleanly."""
-    err = InvalidCategoryError("Unrecognized category: travel")
-    assert str(err) == "Unrecognized category: travel"
-
-    amount_err = InvalidAmountError("Expense amount must be greater than zero.")
-    assert str(amount_err) == "Expense amount must be greater than zero."
+    assert str(InvalidCategoryError("Unrecognized category: travel")) == "Unrecognized category: travel"
+    assert str(InvalidAmountError("Expense amount must be greater than zero.")) == "Expense amount must be greater than zero."
+    assert str(InvalidDateError("Transaction date cannot be in the future.")) == "Transaction date cannot be in the future."
+    assert str(AccountLockedError("25")) == "25"
+    assert str(AuthenticationError("Invalid username or password.")) == "Invalid username or password."
+    assert str(PasswordValidationError("Passwords do not match.")) == "Passwords do not match."

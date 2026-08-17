@@ -1,4 +1,3 @@
-"""Dashboard actions, dialog management, and ledger operations."""
 import os
 from tkinter import filedialog
 import customtkinter as ctk
@@ -6,16 +5,20 @@ from CTkMessagebox import CTkMessagebox
 
 from .exceptions import (
     CategoryAlreadyExistsError,
-    ExpenseTrackerError,
     InvalidAmountError,
     InvalidCategoryError,
+    InvalidDateError,
 )
 from .modals import (
     AddExpenseModal,
     AddIncomeModal,
+    ChangePasswordModal,
     CTkDropdownDialog,
     CTkInputModal,
+    ImportStatementModal,
     IncomeHistoryModal,
+    RecurringTemplatesModal,
+    SavingsGoalsModal,
     SwitchAccountModal,
     TransactionHistoryModal,
 )
@@ -23,7 +26,6 @@ from .theme import CARD_BG, PRIMARY, PRIMARY_HOVER, format_amount
 
 
 class UIActions:
-    """Maps dashboard buttons to operations with input validation."""
 
     def __init__(self, user, user_tracker, users_container, app_root):
         self.user = user
@@ -31,8 +33,12 @@ class UIActions:
         self.users = users_container
         self.root = app_root
 
+    def _get_active_month(self):
+        if hasattr(self.root, "get_selected_month"):
+            return self.root.get_selected_month()
+        return None
+
     def _refresh_dashboard(self):
-        """Helper to trigger metric card and progress bar update on root window safely."""
         try:
             if hasattr(self.root, "refresh_summary_cards") and self.root.winfo_exists():
                 self.root.refresh_summary_cards()
@@ -40,7 +46,6 @@ class UIActions:
             pass
 
     def category_dropdown_menu(self, prompt_title):
-        """Show category picker and return normalized key or None."""
         formatted_options = [cat.capitalize() for cat in self.user.categories]
         dialog = CTkDropdownDialog(
             title="Category Selection",
@@ -58,7 +63,6 @@ class UIActions:
         return normalized
 
     def set_budget(self, default_category=None):
-        """Prompt for category and amount, then save budget limit."""
         if default_category and self.user.is_valid_category(default_category):
             category = default_category.lower().strip()
         else:
@@ -74,9 +78,8 @@ class UIActions:
         raw_limit = dialog.get_input()
         if not raw_limit:
             return
-        clean_limit = raw_limit.replace(",", "").replace(" ", "")
         try:
-            limit_val = float(clean_limit)
+            limit_val = float(raw_limit.replace(",", "").replace(" ", ""))
             self.user.set_budget_limit(category, limit_val)
             self._refresh_dashboard()
             CTkMessagebox(
@@ -88,7 +91,6 @@ class UIActions:
             CTkMessagebox(title="Invalid Input", message=str(exc), icon="cancel", master=self.root)
 
     def add_expense(self):
-        """Prompt for expense details, provide smart budget guidance, and log transaction."""
         modal = AddExpenseModal(self.user.categories, currency=self.user.currency, master=self.root)
         data = modal.get_expense_data()
         if not data:
@@ -102,7 +104,6 @@ class UIActions:
         budget_limit = self.user.budget_limits.get(category, 0.0)
         current_spending = self.user.get_category_expenses().get(category, 0.0)
 
-        # Smart budget guidance: prompt if no budget limit is configured
         if budget_limit <= 0:
             prompt_box = CTkMessagebox(
                 title="No Budget Set",
@@ -128,14 +129,12 @@ class UIActions:
                 raw_limit = dialog.get_input()
                 if raw_limit:
                     try:
-                        clean_limit = raw_limit.replace(",", "").replace(" ", "")
-                        limit_val = float(clean_limit)
+                        limit_val = float(raw_limit.replace(",", "").replace(" ", ""))
                         self.user.set_budget_limit(category, limit_val)
                         budget_limit = limit_val
                     except (InvalidAmountError, ValueError):
                         pass
 
-        # Exceeding budget warning
         if budget_limit > 0 and (current_spending + amount) > budget_limit:
             msg = CTkMessagebox(
                 title="Over Budget Warning",
@@ -150,47 +149,40 @@ class UIActions:
                 return
 
         try:
-            self.user.add_transaction(category, amount, note=note, date=date_str)
+            self.user.add_transaction(category, amount, note=note, date_val=date_str)
             self._refresh_dashboard()
             CTkMessagebox(
                 title="Expense Recorded",
                 message=f"Logged {format_amount(amount, self.user.currency)} under {category.capitalize()}.",
                 icon="check", master=self.root,
             )
-        except (InvalidAmountError, InvalidCategoryError) as exc:
+            self._check_budget_alerts()
+        except (InvalidAmountError, InvalidCategoryError, InvalidDateError) as exc:
             CTkMessagebox(title="Error", message=str(exc), icon="cancel", master=self.root)
 
     def add_income(self):
-        """Prompt user to record income source and amount."""
         modal = AddIncomeModal(currency=self.user.currency, master=self.root)
         data = modal.get_income_data()
         if not data:
             return
 
-        source = data["source"]
-        amount = data["amount"]
-        note = data["note"]
-        date_str = data["date"]
-
         try:
-            self.user.add_income(source, amount, note=note, date=date_str)
+            self.user.add_income(data["source"], data["amount"], note=data["note"], date_val=data["date"])
             self._refresh_dashboard()
             CTkMessagebox(
                 title="Income Recorded",
-                message=f"Logged {format_amount(amount, self.user.currency)} from {source}.",
+                message=f"Logged {format_amount(data['amount'], self.user.currency)} from {data['source']}.",
                 icon="check", master=self.root,
             )
-        except InvalidAmountError as exc:
+        except (InvalidAmountError, InvalidDateError) as exc:
             CTkMessagebox(title="Error", message=str(exc), icon="cancel", master=self.root)
 
     def show_incomes(self):
-        """Open scrollable income history modal."""
         modal = IncomeHistoryModal(self.user, master=self.root)
         self.root.wait_window(modal)
         self._refresh_dashboard()
 
     def remove_expense(self):
-        """Subtract expense from category."""
         category = self.category_dropdown_menu("remove an expense from")
         if not category:
             return
@@ -207,9 +199,8 @@ class UIActions:
         raw_amount = dialog.get_input()
         if not raw_amount:
             return
-        clean_amount = raw_amount.replace(",", "").replace(" ", "")
         try:
-            amount = float(clean_amount)
+            amount = float(raw_amount.replace(",", "").replace(" ", ""))
             self.tracker.remove_expense(category, amount)
             self._refresh_dashboard()
             CTkMessagebox(
@@ -221,18 +212,12 @@ class UIActions:
             CTkMessagebox(title="Error", message=str(exc), icon="cancel", master=self.root)
 
     def show_transactions(self):
-        """Open scrollable transaction ledger modal."""
         modal = TransactionHistoryModal(self.user, master=self.root)
         self.root.wait_window(modal)
         self._refresh_dashboard()
 
     def add_custom_category(self):
-        """Prompt user for new category name and add to profile."""
-        dialog = CTkInputModal(
-            title="New Category",
-            text="Enter custom category name:",
-            master=self.root,
-        )
+        dialog = CTkInputModal(title="New Category", text="Enter custom category name:", master=self.root)
         cat_name = dialog.get_input()
         if not cat_name:
             return
@@ -247,9 +232,24 @@ class UIActions:
         except (CategoryAlreadyExistsError, InvalidCategoryError) as exc:
             CTkMessagebox(title="Error", message=str(exc), icon="cancel", master=self.root)
 
+    def manage_recurring_templates(self):
+        modal = RecurringTemplatesModal(self.user, master=self.root)
+        self.root.wait_window(modal)
+        self._refresh_dashboard()
+
+    def manage_savings_goals(self):
+        modal = SavingsGoalsModal(self.user, master=self.root)
+        self.root.wait_window(modal)
+        self._refresh_dashboard()
+
+    def change_password(self):
+        modal = ChangePasswordModal(self.user.name, master=self.root)
+        modal.is_successful()
+
     def export_to_csv(self):
-        """Export all user transactions and income entries to a selected CSV file."""
-        default_file = f"finance_export_{self.user.name.lower()}.csv"
+        month = self._get_active_month()
+        suffix = f"_{month}" if month else "_all_time"
+        default_file = f"finance_export_{self.user.name.lower()}{suffix}.csv"
         filepath = filedialog.asksaveasfilename(
             parent=self.root,
             title="Export Financial Records to CSV",
@@ -260,7 +260,7 @@ class UIActions:
         if not filepath:
             return
         try:
-            self.user.export_to_csv(filepath)
+            self.user.export_to_csv(filepath, month=month)
             CTkMessagebox(
                 title="Export Complete",
                 message=f"Records successfully exported to:\n{os.path.basename(filepath)}",
@@ -270,7 +270,6 @@ class UIActions:
             CTkMessagebox(title="Export Failed", message=str(exc), icon="cancel", master=self.root)
 
     def reset_category(self):
-        """Clear budget and expense history for selected category."""
         category = self.category_dropdown_menu("reset")
         if not category:
             return
@@ -287,7 +286,6 @@ class UIActions:
         )
 
     def change_account_currency(self, new_currency, currency_selector):
-        """Convert all budgets, transactions, and incomes to new currency with confirmation."""
         if self.user.currency == new_currency:
             return
         msg = CTkMessagebox(
@@ -308,14 +306,14 @@ class UIActions:
             currency_selector.set(self.user.currency)
 
     def show_status(self):
-        """Display window with financial status report."""
+        month = self._get_active_month()
         status_win = ctk.CTkToplevel(self.root)
         status_win.title("Financial Status Dashboard")
         status_win.geometry("640x480")
         status_win.configure(fg_color=CARD_BG)
         text_widget = ctk.CTkTextbox(status_win, font=("Consolas", 12), activate_scrollbars=True)
         text_widget.pack(fill="both", expand=True, padx=15, pady=15)
-        text_widget.insert("1.0", self.tracker.get_status_report())
+        text_widget.insert("1.0", self.tracker.get_status_report(month=month))
         text_widget.configure(state="disabled")
         ctk.CTkButton(
             status_win, text="Close", command=status_win.destroy,
@@ -325,17 +323,42 @@ class UIActions:
         status_win.focus_set()
 
     def show_chart(self):
-        """Open 3-way interactive visual analytics window."""
         from .chart_viewer import ChartViewer
-        ChartViewer.show_expense_pie_chart(parent_root=self.root, user=self.user)
+        month = self._get_active_month()
+        ChartViewer.show_expense_pie_chart(parent_root=self.root, user=self.user, month=month)
 
     def switch_user_profile(self):
-        """Open account switch dialog and switch profile."""
         modal = SwitchAccountModal(self.users, current_user=self.user.name, master=self.root)
         new_username = modal.get_username()
         if new_username:
             self.root.switch_user_workflow(new_username)
 
     def exit_app(self):
-        """Gracefully close the application."""
         self.root.after(0, self.root.on_close)
+
+    def _check_budget_alerts(self):
+        month = self._get_active_month()
+        alerts = self.user.get_budget_alerts(month=month)
+        if not alerts:
+            return
+        danger = [a for a in alerts if a["level"] == "danger"]
+        warning = [a for a in alerts if a["level"] == "warning"]
+        if danger:
+            lines = "\n".join(f"  • {a['message']}" for a in danger)
+            CTkMessagebox(
+                title="Budget Exceeded!",
+                message=f"You have gone over budget:\n{lines}",
+                icon="cancel", master=self.root,
+            )
+        elif warning:
+            lines = "\n".join(f"  • {a['message']}" for a in warning)
+            CTkMessagebox(
+                title="Budget Warning",
+                message=f"You are approaching your budget limit:\n{lines}",
+                icon="warning", master=self.root,
+            )
+
+    def import_bank_statement(self):
+        modal = ImportStatementModal(self.user, master=self.root)
+        self.root.wait_window(modal)
+        self._refresh_dashboard()

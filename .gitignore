@@ -29,6 +29,7 @@ wheels/
 .coverage.*
 .cache
 .pytest_cache/
+htmlcov/
 
 # Environments (Virtual Environments)
 .venv/
@@ -46,9 +47,12 @@ Thumbs.db
 *.swp
 *.swo
 
-# Application Database, Caches & Backups
+# Application Database, Caches, Backups & Exports
 Database.json
+last_known_rates.json
+backups/
 *.tmp
 *.bak
-last_known_rates.json
+*.corrupt.bak
 *.log
+finance_export_*.csv

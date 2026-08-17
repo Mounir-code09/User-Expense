@@ -1,20 +1,17 @@
-"""Visual analytics with interactive 3-way toggle (Expenses, Budgets, Comparison)."""
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import matplotlib.ticker as ticker
 
-from .theme import CARD_BG, CHART_COLORS, PRIMARY, PRIMARY_HOVER, SUCCESS, DANGER, format_amount
+from .theme import CHART_COLORS, PRIMARY, PRIMARY_HOVER, SUCCESS, DANGER, format_amount
 
 
 class ChartViewer:
-    """Embedded interactive financial visualization dialog."""
 
     @staticmethod
-    def show_expense_pie_chart(parent_root, user):
-        """Display interactive charts window with spending, budget, and comparison views."""
-        expenses = user.get_category_expenses()
+    def show_expense_pie_chart(parent_root, user, month=None):
+        expenses = user.get_category_expenses(month=month)
         budgets = user.budget_limits
         currency = user.currency
 
@@ -24,13 +21,14 @@ class ChartViewer:
         if not has_expenses and not has_budgets:
             CTkMessagebox(
                 title="No Data",
-                message="No expenses or budgets available to visualize yet.",
+                message="No expenses or budgets available to visualize for this period.",
                 icon="info",
             )
             return
 
         chart_win = ctk.CTkToplevel(parent_root)
-        chart_win.title("Financial Visual Analytics")
+        period_str = f" - {month}" if month else " - All Time"
+        chart_win.title(f"Financial Visual Analytics{period_str}")
         chart_win.geometry("720x640")
         chart_win.minsize(640, 580)
         chart_win.transient(parent_root)
@@ -41,7 +39,6 @@ class ChartViewer:
         card_color = "#281845" if is_dark else "#ffffff"
         text_color = "#f1f5f9" if is_dark else "#1e1b4b"
 
-        # Top view selector
         top_bar = ctk.CTkFrame(chart_win, fg_color="transparent")
         top_bar.pack(fill="x", padx=20, pady=(15, 10))
 
@@ -70,23 +67,34 @@ class ChartViewer:
             if selected_view == "Spending Distribution":
                 active = {k.capitalize(): v for k, v in expenses.items() if v > 0}
                 if not active:
-                    ax.text(0.5, 0.5, "No spending recorded yet", ha="center", va="center", color=text_color, fontsize=13)
+                    ax.text(0.5, 0.5, "No spending recorded for this period", ha="center", va="center", color=text_color, fontsize=13)
                     ax.axis("off")
                 else:
                     labels = [f"{k}\n({format_amount(v, currency)})" for k, v in active.items()]
-                    amounts = list(active.values())
-                    _, _, autotexts = ax.pie(
-                        amounts,
-                        labels=labels,
-                        autopct="%1.1f%%",
-                        startangle=140,
-                        colors=CHART_COLORS[: len(labels)],
+                    wedges, _, autotexts = ax.pie(
+                        list(active.values()), labels=labels, autopct="%1.1f%%",
+                        startangle=140, colors=CHART_COLORS[:len(labels)],
                         textprops={"color": text_color, "fontsize": 9, "weight": "bold"},
                     )
-                    for autotext in autotexts:
-                        autotext.set_color("#ffffff")
-                        autotext.set_weight("bold")
-                    ax.set_title(f"Spending Breakdown ({currency})", color=text_color, fontsize=14, pad=15, weight="bold")
+                    for at in autotexts:
+                        at.set_color("#ffffff")
+                        at.set_weight("bold")
+                    for w in wedges:
+                        w.set_picker(True)
+
+                    title_suffix = f" ({month})" if month else ""
+                    ax.set_title(f"Spending Breakdown ({currency}){title_suffix}\n(Click any slice to view transactions)", color=text_color, fontsize=13, pad=12, weight="bold")
+
+                    cats_list = list(active.keys())
+
+                    def on_slice_pick(event):
+                        if event.artist in wedges:
+                            idx = wedges.index(event.artist)
+                            clicked_cat = cats_list[idx]
+                            from .modals import TransactionHistoryModal
+                            TransactionHistoryModal(user, initial_category=clicked_cat, month=month, master=chart_win)
+
+                    canvas.mpl_connect("pick_event", on_slice_pick)
 
             elif selected_view == "Budget Allocation":
                 active = {k.capitalize(): v for k, v in budgets.items() if v > 0}
@@ -95,19 +103,29 @@ class ChartViewer:
                     ax.axis("off")
                 else:
                     labels = [f"{k}\n({format_amount(v, currency)})" for k, v in active.items()]
-                    amounts = list(active.values())
-                    _, _, autotexts = ax.pie(
-                        amounts,
-                        labels=labels,
-                        autopct="%1.1f%%",
-                        startangle=140,
-                        colors=CHART_COLORS[: len(labels)],
+                    wedges, _, autotexts = ax.pie(
+                        list(active.values()), labels=labels, autopct="%1.1f%%",
+                        startangle=140, colors=CHART_COLORS[:len(labels)],
                         textprops={"color": text_color, "fontsize": 9, "weight": "bold"},
                     )
-                    for autotext in autotexts:
-                        autotext.set_color("#ffffff")
-                        autotext.set_weight("bold")
-                    ax.set_title(f"Budget Allocation ({currency})", color=text_color, fontsize=14, pad=15, weight="bold")
+                    for at in autotexts:
+                        at.set_color("#ffffff")
+                        at.set_weight("bold")
+                    for w in wedges:
+                        w.set_picker(True)
+
+                    ax.set_title(f"Budget Allocation ({currency})\n(Click any slice to view transactions)", color=text_color, fontsize=13, pad=12, weight="bold")
+
+                    cats_list = list(active.keys())
+
+                    def on_budget_pick(event):
+                        if event.artist in wedges:
+                            idx = wedges.index(event.artist)
+                            clicked_cat = cats_list[idx]
+                            from .modals import TransactionHistoryModal
+                            TransactionHistoryModal(user, initial_category=clicked_cat, month=month, master=chart_win)
+
+                    canvas.mpl_connect("pick_event", on_budget_pick)
 
             elif selected_view == "Spent vs. Budget":
                 cats = [c for c in user.categories if expenses.get(c, 0) > 0 or budgets.get(c, 0) > 0]
@@ -118,24 +136,25 @@ class ChartViewer:
                 spent_vals = [expenses.get(c, 0.0) for c in cats]
                 budget_vals = [budgets.get(c, 0.0) for c in cats]
 
-                import numpy as np
-                y = np.arange(len(cat_names))
                 height = 0.35
+                y = list(range(len(cat_names)))
+                y_lower = [i - height / 2 for i in y]
+                y_upper = [i + height / 2 for i in y]
 
-                ax.barh(y - height / 2, budget_vals, height, label="Budget Limit", color="#6366f1", alpha=0.85)
-                
+                ax.barh(y_lower, budget_vals, height, label="Budget Limit", color="#6366f1", alpha=0.85)
                 spent_colors = [
                     DANGER[0] if (budgets.get(c, 0) > 0 and expenses.get(c, 0) > budgets.get(c, 0)) else SUCCESS[0]
                     for c in cats
                 ]
-                ax.barh(y + height / 2, spent_vals, height, label="Actual Spent", color=spent_colors, alpha=0.9)
+                ax.barh(y_upper, spent_vals, height, label="Actual Spent", color=spent_colors, alpha=0.9)
 
                 ax.set_yticks(y)
                 ax.set_yticklabels(cat_names, color=text_color, fontsize=10, weight="bold")
                 ax.tick_params(colors=text_color)
                 ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, p: f"{x:,.0f}"))
                 ax.set_xlabel(f"Amount ({currency})", color=text_color, fontsize=11, weight="bold")
-                ax.set_title("Budget vs. Actual Spending", color=text_color, fontsize=14, pad=15, weight="bold")
+                title_suffix = f" - {month}" if month else ""
+                ax.set_title(f"Budget vs. Actual Spending{title_suffix}", color=text_color, fontsize=14, pad=15, weight="bold")
                 ax.legend(facecolor=card_color, edgecolor=text_color, labelcolor=text_color, loc="lower right")
                 ax.grid(axis="x", linestyle="--", alpha=0.3)
 
@@ -154,12 +173,7 @@ class ChartViewer:
 
         bottom = ctk.CTkFrame(chart_win, fg_color="transparent")
         bottom.pack(fill="x", padx=20, pady=(5, 15))
-        close_btn = ctk.CTkButton(
-            bottom,
-            text="Close",
-            command=close_chart,
-            fg_color=PRIMARY,
-            hover_color=PRIMARY_HOVER,
-            height=36,
-        )
-        close_btn.pack(fill="x")
+        ctk.CTkButton(
+            bottom, text="Close", command=close_chart,
+            fg_color=PRIMARY, hover_color=PRIMARY_HOVER, height=36,
+        ).pack(fill="x")

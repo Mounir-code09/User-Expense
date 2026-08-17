@@ -1,5 +1,5 @@
-"""Database helpers for users, categories, transactions, incomes, and JSON persistence."""
 import copy
+from datetime import datetime
 import json
 import os
 import shutil
@@ -18,30 +18,35 @@ DEFAULT_USER_TEMPLATE = {
     "budget_limits": {},
     "transactions": [],
     "incomes": [],
+    "templates": {
+        "expenses": [],
+        "incomes": [],
+    },
     "password_hash": "",
+    "security_question": "",
+    "security_answer_hash": "",
     "failed_attempts": 0,
     "lockout_until": 0,
+    "payee_rules": {},
+    "savings_goals": [],
 }
 
 
 def default_user_profile():
-    """Return a fresh copy of the default user template."""
     return copy.deepcopy(DEFAULT_USER_TEMPLATE)
 
 
 def set_database_file(filename):
-    """Set the active database file path."""
     global DATABASE_FILE
     DATABASE_FILE = filename
 
 
 def load_database():
-    """Load database from file or return empty structure if missing or corrupt."""
     if not os.path.exists(DATABASE_FILE):
         return {"users": {}}
     try:
-        with open(DATABASE_FILE, "r", encoding="utf-8") as file:
-            data = json.load(file)
+        with open(DATABASE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
             if not isinstance(data, dict):
                 return {"users": {}}
             data.setdefault("users", {})
@@ -55,36 +60,42 @@ def load_database():
 
 
 def save_database(data):
-    """Write database safely using temporary file replacement."""
-    temp_file = f"{DATABASE_FILE}.tmp"
-    with open(temp_file, "w", encoding="utf-8") as file:
-        json.dump(data, file, indent=4)
-    os.replace(temp_file, DATABASE_FILE)
+    temp = f"{DATABASE_FILE}.tmp"
+    try:
+        with open(temp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+        os.replace(temp, DATABASE_FILE)
+    except OSError:
+        if os.path.exists(temp):
+            os.remove(temp)
+        raise
 
 
 def normalize_username(name):
-    """Normalize username by trimming and title-casing."""
     if not name:
         return ""
     return name.strip().title()
 
 
 def _migrate_user_data(raw_data):
-    """Migrate legacy user profile schemas to support transactions, incomes, and custom categories."""
     profile = default_user_profile()
     profile.update(raw_data)
 
-    if "categories" not in profile or not profile["categories"]:
+    if not profile.get("categories"):
         profile["categories"] = DEFAULT_CATEGORIES.copy()
 
     if "budget_limit" in profile and "budget_limits" not in raw_data:
         profile["budget_limits"] = profile.pop("budget_limit")
 
-    if "transactions" not in profile:
-        profile["transactions"] = []
-
-    if "incomes" not in profile:
-        profile["incomes"] = []
+    profile.setdefault("transactions", [])
+    profile.setdefault("incomes", [])
+    profile.setdefault("templates", {"expenses": [], "incomes": []})
+    profile["templates"].setdefault("expenses", [])
+    profile["templates"].setdefault("incomes", [])
+    profile.setdefault("security_question", "")
+    profile.setdefault("security_answer_hash", "")
+    profile.setdefault("payee_rules", {})
+    profile.setdefault("savings_goals", [])
 
     if not profile["transactions"] and "current_expenses" in profile:
         for cat, amount in profile["current_expenses"].items():
@@ -101,49 +112,68 @@ def _migrate_user_data(raw_data):
 
 
 def load_user(username):
-    """Load user profile or return default template with schema migration."""
-    norm_name = normalize_username(username)
-    if not norm_name:
+    norm = normalize_username(username)
+    if not norm:
         return default_user_profile()
-    database = load_database()
-    raw = database["users"].get(norm_name)
+    db = load_database()
+    raw = db["users"].get(norm)
     if raw is None:
         return default_user_profile()
     return _migrate_user_data(raw)
 
 
 def save_user(username, user_data_dict):
-    """Persist a user profile to the database."""
-    norm_name = normalize_username(username)
-    if not norm_name:
+    norm = normalize_username(username)
+    if not norm:
         return
-    database = load_database()
-    database["users"][norm_name] = user_data_dict
-    save_database(database)
+    db = load_database()
+    db["users"][norm] = user_data_dict
+    save_database(db)
 
 
 def delete_user_data(username):
-    """Delete user record. Return True if user existed."""
-    norm_name = normalize_username(username)
-    if not norm_name:
+    norm = normalize_username(username)
+    if not norm:
         return False
-    database = load_database()
-    if norm_name in database["users"]:
-        del database["users"][norm_name]
-        save_database(database)
+    db = load_database()
+    if norm in db["users"]:
+        del db["users"][norm]
+        save_database(db)
         return True
     return False
 
 
 def get_all_usernames():
-    """Return list of all stored usernames."""
-    database = load_database()
-    return list(database["users"].keys())
+    return list(load_database()["users"].keys())
 
 
 def user_exists(username):
-    """Check if username exists in database."""
-    norm_name = normalize_username(username)
-    if not norm_name:
+    norm = normalize_username(username)
+    if not norm:
         return False
-    return norm_name in get_all_usernames()
+    return norm in get_all_usernames()
+
+
+def create_timestamped_backup(backup_dir="backups", max_backups=10):
+    if not os.path.exists(DATABASE_FILE):
+        return None
+    try:
+        os.makedirs(backup_dir, exist_ok=True)
+        ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        backup_path = os.path.join(backup_dir, f"Database_backup_{ts}.json")
+        shutil.copy2(DATABASE_FILE, backup_path)
+
+        existing = [
+            os.path.join(backup_dir, f) for f in os.listdir(backup_dir)
+            if f.startswith("Database_backup_") and f.endswith(".json")
+        ]
+        if len(existing) > max_backups:
+            existing.sort(key=os.path.getmtime)
+            for old_file in existing[:-max_backups]:
+                try:
+                    os.remove(old_file)
+                except OSError:
+                    pass
+        return backup_path
+    except OSError:
+        return None

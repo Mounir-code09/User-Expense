@@ -1,4 +1,4 @@
-"""Shared colors, styling constants, and visual formatting helpers."""
+import sys
 
 APP_BG = ("#f1f5f9", "#0b0618")
 CARD_BG = ("#ffffff", "#19102e")
@@ -16,7 +16,6 @@ NEUTRAL = ("#64748b", "#475569")
 NEUTRAL_HOVER = ("#475569", "#334155")
 
 TITLE = ("#1e293b", "#f8fafc")
-SUBTITLE = ("#475569", "#cbd5e1")
 BODY = ("#334155", "#e2e8f0")
 MUTED = ("#64748b", "#94a3b8")
 HIGHLIGHT = ("#0284c7", "#38bdf8")
@@ -32,13 +31,31 @@ CHART_COLORS = [
 
 
 def format_amount(amount, currency=None):
-    """Format numeric value with thousands commas and 2 decimals."""
     try:
-        val = float(amount)
-        formatted = f"{val:,.2f}"
+        formatted = f"{float(amount):,.2f}"
     except (ValueError, TypeError):
         formatted = "0.00"
+    return f"{formatted} {currency}" if currency else formatted
 
-    if currency:
-        return f"{formatted} {currency}"
-    return formatted
+
+def get_system_appearance_mode():
+    if sys.platform == "win32":
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            )
+            val, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            winreg.CloseKey(key)
+            return "Light" if val == 1 else "Dark"
+        except Exception:
+            pass
+    try:
+        import darkdetect
+        mode = darkdetect.theme()
+        if mode:
+            return mode.capitalize()
+    except Exception:
+        pass
+    return "Dark"

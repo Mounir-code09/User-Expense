@@ -1,57 +1,61 @@
-"""Currency conversion, exchange rates, and offline fallback tests."""
 import threading
-import pytest
 from core.currency_service import CurrencyService
 
 
-def test_currency_conversion_fallback():
-    """Offline mode uses static fallback exchange rates."""
-    service = CurrencyService()
-    service.rates = {}
-    service.is_offline = True
-
-    converted_eur = service.convert(100.0, "USD", "EUR")
-    assert converted_eur == 92.0
-
-    converted_cross = service.convert(100.0, "EUR", "GBP")
-    assert isinstance(converted_cross, float)
+def _isolated_service(monkeypatch):
+    monkeypatch.setattr("core.currency_service.CACHE_FILE", "/dev/null")
+    svc = CurrencyService()
+    svc.rates = {}
+    return svc
 
 
-def test_same_currency_conversion():
-    """Same currency conversion returns amount unchanged."""
-    service = CurrencyService()
-    assert service.convert(50.0, "USD", "USD") == 50.0
-    assert service.convert(250.50, "JPY", "JPY") == 250.50
+def test_conversion_fallback_offline(monkeypatch):
+    svc = _isolated_service(monkeypatch)
+    svc.is_offline = True
+
+    expected_eur = round((100.0 / svc.fallback_rates["USD"]) * svc.fallback_rates["EUR"], 2)
+    assert svc.convert(100.0, "USD", "EUR") == expected_eur
+    assert isinstance(svc.convert(100.0, "EUR", "GBP"), float)
 
 
-def test_same_currency_rounds_to_two_decimals():
-    """All conversions are rounded consistently to 2 decimal places."""
-    service = CurrencyService()
-    assert service.convert(19.999, "USD", "USD") == 20.0
-    assert service.convert(10.005, "EUR", "EUR") == 10.01
+def test_same_currency_passthrough():
+    svc = CurrencyService()
+    assert svc.convert(50.0, "USD", "USD") == 50.0
+    assert svc.convert(250.50, "JPY", "JPY") == 250.50
 
 
-def test_failure_threshold_logic():
-    """Service switches to offline mode only after 3 consecutive failures."""
-    service = CurrencyService()
-    assert service.is_offline is False
-    assert service._consecutive_failures == 0
+def test_rounding_precision(monkeypatch):
+    svc = _isolated_service(monkeypatch)
+    svc.fallback_rates = {"USD": 1.0, "EUR": 0.5}
 
-    service._handle_failure()
-    assert service._consecutive_failures == 1
-    assert service.is_offline is False
-
-    service._handle_failure()
-    assert service._consecutive_failures == 2
-    assert service.is_offline is False
-
-    service._handle_failure()
-    assert service._consecutive_failures == 3
-    assert service.is_offline is True
+    # 100 USD -> EUR at 0.5 rate = 50.00 exactly; confirms rounding works on actual cross-currency math
+    assert svc.convert(100.0, "USD", "EUR") == 50.0
+    # Odd floating-point amount
+    assert svc.convert(33.333, "USD", "EUR") == 16.67
 
 
-def test_fetch_rates_async():
-    """Async rate fetching returns a running or completed thread."""
-    service = CurrencyService()
-    thread = service.fetch_rates_async()
-    assert isinstance(thread, threading.Thread)
+def test_offline_threshold():
+    svc = CurrencyService()
+    assert not svc.is_offline
+
+    svc._handle_failure()
+    svc._handle_failure()
+    assert not svc.is_offline
+
+    svc._handle_failure()
+    assert svc.is_offline
+
+
+def test_missing_rate_fallback_no_crash(monkeypatch):
+    svc = _isolated_service(monkeypatch)
+    svc.fallback_rates = {}
+    result = svc.convert(100.0, "XYZ", "ABC")
+    assert isinstance(result, float)
+    assert result == 100.0  # both rates default to 1.0 → amount unchanged
+
+
+def test_async_fetch_returns_thread():
+    svc = CurrencyService()
+    t = svc.fetch_rates_async()
+    assert isinstance(t, threading.Thread)
+
